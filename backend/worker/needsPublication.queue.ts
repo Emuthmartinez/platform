@@ -1,4 +1,5 @@
 import { Worker, type Processor } from "bullmq";
+import { requireNeedsJob } from "../src/lib/queue-protocol";
 import {
   NEEDS_PUBLICATION_QUEUE,
   type NeedPublicationJob,
@@ -8,11 +9,12 @@ import { getRedis } from "./redis";
 const PREFIX = process.env.QUEUE_PREFIX || "mapa";
 
 const processor: Processor<NeedPublicationJob> = async (job) => {
+  const data = requireNeedsJob(job.data);
   const { publishNeed } = await import("../src/modules/needs/needs-module");
   await job.updateProgress(10);
-  const result = job.data.location
-    ? await publishNeed.executeAtLocation(job.data.need, job.data.location)
-    : await publishNeed.execute(job.data.need);
+  const result = data.location
+    ? await publishNeed.executeAtLocation(data.need, data.location)
+    : await publishNeed.execute(data.need);
   await job.updateProgress(100);
   return result;
 };

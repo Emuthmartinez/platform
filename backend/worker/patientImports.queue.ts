@@ -1,25 +1,12 @@
 import { type Processor, Worker } from "bullmq";
+import { requireImportJob } from "../src/lib/queue-protocol";
 import { getRedis } from "./redis";
 
 const PREFIX = process.env.QUEUE_PREFIX || "mapa";
 export const PATIENT_IMPORTS_QUEUE = "patient-imports";
 
-type PatientImportMode = "process" | "apply" | "ocr";
-
-interface PatientImportJobData {
-	importId: string;
-	mode: PatientImportMode;
-	actorId?: string | null;
-	imageUrl?: string;
-
-	contentType?: string;
-	fileBase64?: string;
-	/** Hospital destino del lote: se estampa en todas las filas al stagear. */
-	defaultHospitalId?: string;
-}
-
 const processor: Processor = async (job) => {
-	const data = job.data as PatientImportJobData;
+	const data = requireImportJob(job.data);
 
 	const {
 		processImport,
@@ -29,29 +16,32 @@ const processor: Processor = async (job) => {
 		markImportFailed,
 	} = await import("../src/services/patient-imports");
 	try {
-		if (data.mode === "ocr") {
-			const r = await ingestOcrImport(data.importId, data.imageUrl);
-			return { mode: "ocr", importId: data.importId, counts: r.counts };
+		switch (data.mode) {
+			case "ocr": {
+				const r = await ingestOcrImport(data.importId, data.imageUrl);
+				return { mode: "ocr", importId: data.importId, counts: r.counts };
+			}
+			case "process": {
+				const r =
+					data.fileBase64 !== undefined && data.contentType !== undefined
+						? await ingestFileImport(
+								data.importId,
+								data.contentType,
+								data.fileBase64,
+								data.defaultHospitalId,
+							)
+						: await processImport(data.importId);
+				return { mode: "process", importId: data.importId, counts: r.counts };
+			}
+			case "apply": {
+				const r = await applyImport(data.importId, data.actorId ?? null);
+				return { mode: "apply", importId: data.importId, counts: r.counts };
+			}
+			default: {
+				const _exhaustive: never = data.mode;
+				throw new Error(`patient-import modo desconocido: ${String(_exhaustive)}`);
+			}
 		}
-		if (data.mode === "process") {
-			const r =
-				data.fileBase64 !== undefined && data.contentType !== undefined
-					? await ingestFileImport(
-							data.importId,
-							data.contentType,
-							data.fileBase64,
-							data.defaultHospitalId,
-						)
-					: await processImport(data.importId);
-			return { mode: "process", importId: data.importId, counts: r.counts };
-		}
-		if (data.mode === "apply") {
-			const r = await applyImport(data.importId, data.actorId ?? null);
-			return { mode: "apply", importId: data.importId, counts: r.counts };
-		}
-		throw new Error(
-			`patient-import modo desconocido: ${(data as { mode: string }).mode}`,
-		);
 	} catch (err) {
 		const attemptsMade = job.attemptsMade + 1;
 		const maxAttempts = job.opts.attempts ?? 1;

@@ -3,20 +3,25 @@
  * poder testearla (worker.ts importa `cloudflare:node` en ámbito de módulo y
  * no se puede cargar desde un test; mismo motivo que services/cron-jobs.ts).
  *
- * Dos colas, un solo Worker (U2/U3 del plan de port de colas):
- *
- *  - `…-needs[…]`      publicación de necesidades → ResponseGrid. Ack POR
- *    MENSAJE: un mensaje envenenado no fuerza la reentrega de sus compañeros
- *    de lote. Un fallo hace `retry()` y Queues aplica max_retries/DLQ (KTD4).
- *  - `…-needs-dlq[…]`  cartas muertas. Se PERSISTEN en `audit_log`
- *    (action `queue.dead_letter`) — sin migración (KTD5), duraderas más allá
- *    de los 4 días de retención del DLQ, e inspeccionables por la superficie
- *    de auditoría existente (`/api/public/audit`, gateada por audit:read) o
- *    la pantalla Auditoría del panel. El ack aquí es INCONDICIONAL: un fallo
- *    al persistir no debe dead-letterear la carta muerta.
+ * U20: nombres exactos (queue-registry), Zod dual-decoder (queue-protocol)
+ * antes de código de dominio, DLQ con recibo redactado, y cuarentena para
+ * colas desconocidas. El productor sigue emitiendo el cuerpo v1.
  */
 import { getDb, schema } from "@/db";
+import {
+  decodeImportJob,
+  decodeMatcherJob,
+  decodeNeedsJob,
+  extractPreservedErrorSummary,
+  redactQueuePayload,
+  type ImportJobBody,
+  type MatcherJobBody,
+} from "@/lib/queue-protocol";
+import { lookupQueueKind, type QueueKind } from "@/lib/queue-registry";
 import type { NeedPublicationJob } from "@/modules/needs/infrastructure/needs-publication-queue";
+
+export type { QueueKind } from "@/lib/queue-registry";
+export type { ImportJobBody, MatcherJobBody } from "@/lib/queue-protocol";
 
 /** Forma mínima del mensaje que entrega el runtime de Queues. */
 export interface IncomingQueueMessage {
@@ -33,30 +38,12 @@ export interface IncomingQueueBatch {
   messages: readonly IncomingQueueMessage[];
 }
 
-export type QueueKind =
-  | "needs"
-  | "needs-dlq"
-  | "imports"
-  | "imports-dlq"
-  | "matcher"
-  | "matcher-dlq"
-  | "unknown";
-
 /**
- * Clasifica una cola por su nombre. Cubre los nombres reales
- * (terremotocolombia-{needs,imports,matcher}[-dlq][-staging]) sin acoplarse
- * al prefijo, y lo desconocido se reporta como tal. El DLQ de cada familia se
- * comprueba ANTES que la familia (mismo motivo en las tres): "-matcher" es
- * substring de "-matcher-dlq".
+ * Clasifica una cola por nombre exacto. Un substring ya no alcanza: un nombre
+ * no registrado es `unknown` y va a cuarentena, no a un consumidor equivocado.
  */
 export function classifyQueue(name: string): QueueKind {
-  if (name.includes("-needs-dlq")) return "needs-dlq";
-  if (name.includes("-needs")) return "needs";
-  if (name.includes("-imports-dlq")) return "imports-dlq";
-  if (name.includes("-imports")) return "imports";
-  if (name.includes("-matcher-dlq")) return "matcher-dlq";
-  if (name.includes("-matcher")) return "matcher";
-  return "unknown";
+  return lookupQueueKind(name);
 }
 
 export interface NeedsConsumerDeps {
@@ -66,13 +53,23 @@ export interface NeedsConsumerDeps {
   markCompleted?(jobId: string, result: unknown): Promise<void>;
 }
 
+function retryInvalid(message: IncomingQueueMessage, family: string, reason: string): void {
+  console.error(`[queue:${family}] mensaje ${message.id} ${reason} — reintento.`);
+  message.retry();
+}
+
 /** Procesa un batch de publicaciones. Ack por mensaje; fallo → retry(). */
 export async function consumeNeedsBatch(
   batch: IncomingQueueBatch,
   deps: NeedsConsumerDeps,
 ): Promise<void> {
   for (const message of batch.messages) {
-    const job = message.body as NeedPublicationJob;
+    const decoded = decodeNeedsJob(message.body);
+    if (!decoded.ok) {
+      retryInvalid(message, "needs", decoded.reason);
+      continue;
+    }
+    const job = decoded.job;
     let result: unknown;
     try {
       result = await deps.publish(job);
@@ -100,31 +97,9 @@ export async function consumeNeedsBatch(
   }
 }
 
-/**
- * Job de importación de pacientes (misma forma que el camino BullMQ:
- * lib/queues.PatientImportJobData). Los campos pesados (fileBase64) nunca
- * viajan por Queues — el productor materializa las filas antes de encolar.
- */
-export interface ImportJobBody {
-  importId: string;
-  mode: "process" | "apply" | "ocr";
-  actorId?: string | null;
-  imageUrl?: string;
-}
-
 export interface ImportsConsumerDeps {
   /** Ejecuta el job (inyectable para tests; en prod, patient-imports). */
   run(job: ImportJobBody): Promise<unknown>;
-}
-
-function isImportJob(body: unknown): body is ImportJobBody {
-  const job = body as ImportJobBody | null;
-  return (
-    typeof job === "object" &&
-    job !== null &&
-    typeof job.importId === "string" &&
-    typeof job.mode === "string"
-  );
 }
 
 /** Procesa un batch de importaciones. Ack por mensaje; fallo → retry(). */
@@ -133,33 +108,22 @@ export async function consumeImportsBatch(
   deps: ImportsConsumerDeps,
 ): Promise<void> {
   for (const message of batch.messages) {
-    if (!isImportJob(message.body)) {
-      console.error(`[queue:imports] mensaje ${message.id} sin forma de job — al DLQ.`);
-      message.retry();
+    const decoded = decodeImportJob(message.body);
+    if (!decoded.ok) {
+      retryInvalid(message, "imports", decoded.reason);
       continue;
     }
     try {
-      await deps.run(message.body);
+      await deps.run(decoded.job);
       message.ack();
     } catch (err) {
       console.error(
-        `[queue:imports] ${message.body.mode} de ${message.body.importId} falló (intento ${message.attempts ?? "?"}):`,
+        `[queue:imports] ${decoded.job.mode} de ${decoded.job.importId} falló (intento ${message.attempts ?? "?"}):`,
         err instanceof Error ? err.message : String(err),
       );
       message.retry();
     }
   }
-}
-
-/**
- * Job del matcher determinista (U8): `{ prn }` únicamente (regla de Queues de
- * mensajes ≤128KB — no hace falta más, `services/matcher` resuelve el registro
- * completo a partir del PRN). Mismo criterio que `ImportJobBody`: forma propia
- * aquí, desacoplada de `services/matcher` — el consumidor no importa el
- * módulo de dominio, solo la forma del mensaje.
- */
-export interface MatcherJobBody {
-  prn: string;
 }
 
 export interface MatcherConsumerDeps {
@@ -168,41 +132,27 @@ export interface MatcherConsumerDeps {
   run(job: MatcherJobBody): Promise<unknown>;
 }
 
-function isMatcherJob(body: unknown): body is MatcherJobBody {
-  const job = body as MatcherJobBody | null;
-  return typeof job === "object" && job !== null && typeof job.prn === "string" && job.prn.length > 0;
-}
-
 /**
- * Procesa un batch de sweeps del matcher. Ack por mensaje; fallo → retry()
- * (mismo criterio que `consumeNeedsBatch`/`consumeImportsBatch`: Queues
- * reintenta según `max_retries`/`retry_delay` del consumidor en
- * wrangler.jsonc y agotados los reintentos cae al DLQ genérico). Un mensaje
- * sin forma de job también hace retry() en vez de descartarse en silencio —
- * si nunca adquiere forma válida, agota reintentos igual y queda visible en
- * `audit_log` vía el DLQ, en vez de perderse sin rastro.
- *
- * Idempotente por construcción vía `services/matcher`: la escritura de
- * `person_links` es un upsert por `(prn_a, prn_b)` (KTD4/KTD5), así que la
- * entrega al-menos-una-vez de Queues es segura — dos entregas del MISMO
- * mensaje dejan la MISMA fila.
+ * Procesa un batch de sweeps del matcher. Ack por mensaje; fallo → retry().
+ * Un cuerpo inválido también hace retry() — si nunca adquiere forma válida,
+ * agota reintentos y queda visible vía el DLQ.
  */
 export async function consumeMatcherBatch(
   batch: IncomingQueueBatch,
   deps: MatcherConsumerDeps,
 ): Promise<void> {
   for (const message of batch.messages) {
-    if (!isMatcherJob(message.body)) {
-      console.error(`[queue:matcher] mensaje ${message.id} sin forma de job — reintento.`);
-      message.retry();
+    const decoded = decodeMatcherJob(message.body);
+    if (!decoded.ok) {
+      retryInvalid(message, "matcher", decoded.reason);
       continue;
     }
     try {
-      await deps.run(message.body);
+      await deps.run(decoded.job);
       message.ack();
     } catch (err) {
       console.error(
-        `[queue:matcher] sweep de ${message.body.prn} falló (intento ${message.attempts ?? "?"}):`,
+        `[queue:matcher] sweep de ${decoded.job.prn} falló (intento ${message.attempts ?? "?"}):`,
         err instanceof Error ? err.message : String(err),
       );
       message.retry();
@@ -215,32 +165,61 @@ export interface DeadLetterEntry {
   messageId: string;
   attempts: number | null;
   payload: unknown;
+  action?: "queue.dead_letter" | "queue.quarantine";
+  reason?: string;
 }
 
 export type PersistDeadLetter = (entry: DeadLetterEntry) => Promise<void>;
 
+const DLQ_PERSIST_ATTEMPTS = 3;
+
 /**
- * Persiste una carta muerta en la bitácora de auditoría. Reusa la forma del
- * registro de worker/deadletter.ts (cola, id, intentos, payload) sobre la
- * tabla existente — sin transporte Redis y sin migración.
+ * Persiste una carta muerta o una cuarentena. El payload se redacta aquí
+ * para que ningún llamador copie un cuerpo ciudadano a `audit_log`.
+ * Conserva `errorSummary` del procesador de importación si viaja en el cuerpo.
  */
 export async function persistDeadLetter(entry: DeadLetterEntry): Promise<void> {
+  const errorSummary = extractPreservedErrorSummary(entry.payload);
   await getDb()
     .insert(schema.auditLog)
     .values({
       actorUserId: null,
-      action: "queue.dead_letter",
+      action: entry.action ?? "queue.dead_letter",
       targetType: "queue",
       targetId: entry.queue,
       metadata: {
         messageId: entry.messageId,
         attempts: entry.attempts,
-        reason: "reintentos agotados (max_retries)",
-        payload: entry.payload,
+        reason: entry.reason ?? "reintentos agotados (max_retries)",
+        payload: redactQueuePayload(entry.payload),
+        ...(errorSummary ? { errorSummary } : {}),
       },
       ipHash: null,
       createdAt: Date.now(),
     });
+}
+
+async function persistBounded(
+  persist: PersistDeadLetter,
+  entry: DeadLetterEntry,
+): Promise<boolean> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= DLQ_PERSIST_ATTEMPTS; attempt += 1) {
+    try {
+      await persist(entry);
+      return true;
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  console.error({
+    t: "queue_dlq_persist_lost",
+    queue: entry.queue,
+    message_id: entry.messageId,
+    persist_attempts: DLQ_PERSIST_ATTEMPTS,
+    error: lastError instanceof Error ? lastError.message : String(lastError),
+  });
+  return false;
 }
 
 export interface DlqHooks {
@@ -254,49 +233,90 @@ export interface DlqHooks {
   onImportDeadLetter?(job: ImportJobBody): Promise<void>;
 }
 
-/** Procesa un batch del DLQ: persistir y SIEMPRE ack (nunca reencolar). */
+/**
+ * Procesa un batch del DLQ. Ack solo si el recibo quedó escrito (U20/KTD18).
+ * Los consumidores DLQ de wrangler tienen `max_retries: 0`: si la persistencia
+ * falla tras los reintentos acotados, retry() pide otro isolate; Cloudflare
+ * puede entonces descartar el mensaje. El log `queue_dlq_persist_lost` es la
+ * alerta. No se copia el cuerpo ciudadano: el payload se redacta antes.
+ */
 export async function consumeDlqBatch(
   batch: IncomingQueueBatch,
   persist: PersistDeadLetter,
   hooks: DlqHooks = {},
 ): Promise<void> {
   for (const message of batch.messages) {
-    try {
-      await persist({
-        queue: batch.queue,
-        messageId: message.id,
-        attempts: message.attempts ?? null,
-        payload: message.body,
-      });
-    } catch (err) {
-      // Visible y accionable, pero sin tumbar el ack: perder el registro es
-      // mejor que un bucle infinito de reentrega de la propia carta muerta.
-      console.error(
-        `[queue:dlq] no se pudo persistir la carta muerta ${message.id}:`,
-        err instanceof Error ? err.message : String(err),
-      );
+    const persisted = await persistBounded(persist, {
+      queue: batch.queue,
+      messageId: message.id,
+      attempts: message.attempts ?? null,
+      payload: redactQueuePayload(message.body),
+    });
+    if (!persisted) {
+      message.retry();
+      continue;
     }
-    if (hooks.onImportDeadLetter && isImportJob(message.body)) {
-      try {
-        await hooks.onImportDeadLetter(message.body);
-      } catch (err) {
-        console.error(
-          `[queue:dlq] no se pudo marcar fallido el lote ${(message.body as ImportJobBody).importId}:`,
-          err instanceof Error ? err.message : String(err),
-        );
+    const kind = classifyQueue(batch.queue);
+    if (hooks.onImportDeadLetter && (kind === "imports-dlq" || kind === "imports")) {
+      const importDecoded = decodeImportJob(message.body);
+      if (importDecoded.ok) {
+        try {
+          await hooks.onImportDeadLetter(importDecoded.job);
+        } catch (err) {
+          console.error(
+            `[queue:dlq] no se pudo marcar fallido el lote ${importDecoded.job.importId}:`,
+            err instanceof Error ? err.message : String(err),
+          );
+        }
       }
     }
-    const needJob = message.body as NeedPublicationJob | null;
-    if (hooks.onNeedDeadLetter && needJob?.jobId && needJob.need) {
-      try {
-        await hooks.onNeedDeadLetter(needJob);
-      } catch (err) {
-        console.error(
-          `[queue:dlq] no se pudo marcar fallida la publicación ${needJob.jobId}:`,
-          err instanceof Error ? err.message : String(err),
-        );
+    if (hooks.onNeedDeadLetter && (kind === "needs-dlq" || kind === "needs")) {
+      const needDecoded = decodeNeedsJob(message.body);
+      if (needDecoded.ok && needDecoded.job.jobId && needDecoded.job.need) {
+        try {
+          await hooks.onNeedDeadLetter(needDecoded.job);
+        } catch (err) {
+          console.error(
+            `[queue:dlq] no se pudo marcar fallida la publicación ${needDecoded.job.jobId}:`,
+            err instanceof Error ? err.message : String(err),
+          );
+        }
       }
     }
     message.ack();
+  }
+}
+
+/**
+ * Cola no registrada: persistir un recibo de cuarentena y ack solo si el
+ * recibo quedó escrito. Si la persistencia falla, retry() — no ack silencioso.
+ */
+export async function consumeUnknownQueueBatch(
+  batch: IncomingQueueBatch,
+  persist: PersistDeadLetter,
+): Promise<void> {
+  console.error({
+    t: "queue_quarantine",
+    queue: batch.queue,
+    messages: batch.messages.length,
+    outcome: "unhandled",
+  });
+  for (const message of batch.messages) {
+    const persisted = await persistBounded(persist, {
+      queue: batch.queue,
+      messageId: message.id,
+      attempts: message.attempts ?? null,
+      payload: {
+        reason: "unknown_queue",
+        body: redactQueuePayload(message.body),
+      },
+      action: "queue.quarantine",
+      reason: "unknown_queue",
+    });
+    if (persisted) {
+      message.ack();
+      continue;
+    }
+    message.retry();
   }
 }

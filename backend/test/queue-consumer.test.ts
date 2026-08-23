@@ -10,10 +10,14 @@ import { desc, eq } from "drizzle-orm";
 import {
   classifyQueue,
   consumeDlqBatch,
+  consumeImportsBatch,
+  consumeMatcherBatch,
   consumeNeedsBatch,
+  consumeUnknownQueueBatch,
   persistDeadLetter,
   type IncomingQueueMessage,
 } from "@/lib/queue-consumer";
+import { QUEUE_PROTOCOL_FIXTURES } from "@/lib/queue-protocol-schema";
 import { getDb, schema } from "@/db";
 
 interface FakeMessage extends IncomingQueueMessage {
@@ -39,12 +43,17 @@ function fakeMessage(id: string, body: unknown, attempts = 1): FakeMessage {
 }
 
 describe("classifyQueue", () => {
-  it("reconoce los cuatro nombres reales y lo desconocido", () => {
+  it("reconoce los nombres exactos y rechaza un substring", () => {
     expect(classifyQueue("terremotocolombia-needs")).toBe("needs");
     expect(classifyQueue("terremotocolombia-needs-staging")).toBe("needs");
     expect(classifyQueue("terremotocolombia-needs-dlq")).toBe("needs-dlq");
     expect(classifyQueue("terremotocolombia-needs-dlq-staging")).toBe("needs-dlq");
+    expect(classifyQueue("terremotocolombia-imports")).toBe("imports");
+    expect(classifyQueue("terremotocolombia-matcher-staging")).toBe("matcher");
+    expect(classifyQueue("needs-publication")).toBe("needs");
+    expect(classifyQueue("patient-imports")).toBe("imports");
     expect(classifyQueue("otra-cola")).toBe("unknown");
+    expect(classifyQueue("foo-needs-bar")).toBe("unknown");
   });
 });
 
@@ -111,6 +120,74 @@ describe("consumeNeedsBatch", () => {
     ).resolves.toBeUndefined();
     expect(message.retried).toBe(true);
   });
+
+  it("acepta un envelope v2 y no pisa un tenant extranjero", async () => {
+    const publish = vi.fn().mockResolvedValue({ ok: true });
+    const message = fakeMessage("m-v2", QUEUE_PROTOCOL_FIXTURES.needsV2OtherTenant);
+    await consumeNeedsBatch(
+      { queue: "terremotocolombia-needs", messages: [message] },
+      { publish },
+    );
+    expect(publish).toHaveBeenCalledWith({
+      jobId: "need-other-v2",
+      need: { title: "Demo" },
+      location: undefined,
+    });
+    expect(message.acked).toBe(true);
+  });
+
+  it("un cuerpo malformado o de versión no soportada hace retry (poison)", async () => {
+    const publish = vi.fn();
+    const malformed = fakeMessage("bad", "not-an-object");
+    const unsupported = fakeMessage("v99", QUEUE_PROTOCOL_FIXTURES.unsupportedVersion);
+    const wrongFamily = fakeMessage("wf", QUEUE_PROTOCOL_FIXTURES.wrongFamilyOnNeeds);
+    await consumeNeedsBatch(
+      { queue: "terremotocolombia-needs", messages: [malformed, unsupported, wrongFamily] },
+      { publish },
+    );
+    expect(publish).not.toHaveBeenCalled();
+    expect(malformed.retried).toBe(true);
+    expect(unsupported.retried).toBe(true);
+    expect(wrongFamily.retried).toBe(true);
+  });
+});
+
+describe("consumeImportsBatch", () => {
+  it("acepta el cuerpo v1 y el envelope v2", async () => {
+    const run = vi.fn().mockResolvedValue({ ok: true });
+    const v1 = fakeMessage("imp-1", QUEUE_PROTOCOL_FIXTURES.importsV1);
+    const v2 = fakeMessage("imp-2", QUEUE_PROTOCOL_FIXTURES.importsV2);
+    await consumeImportsBatch(
+      { queue: "terremotocolombia-imports", messages: [v1, v2] },
+      { run },
+    );
+    expect(run).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      importId: "imp-demo-1",
+      mode: "process",
+    }));
+    expect(run).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      importId: "imp-demo-v2",
+      mode: "apply",
+    }));
+    expect(v1.acked).toBe(true);
+    expect(v2.acked).toBe(true);
+  });
+});
+
+describe("consumeMatcherBatch", () => {
+  it("acepta el cuerpo v1 y el envelope v2", async () => {
+    const run = vi.fn().mockResolvedValue(undefined);
+    const v1 = fakeMessage("m-1", QUEUE_PROTOCOL_FIXTURES.matcherV1);
+    const v2 = fakeMessage("m-2", QUEUE_PROTOCOL_FIXTURES.matcherV2);
+    await consumeMatcherBatch(
+      { queue: "terremotocolombia-matcher", messages: [v1, v2] },
+      { run },
+    );
+    expect(run).toHaveBeenCalledWith({ prn: "PRN-DEMO-0001" });
+    expect(run).toHaveBeenCalledWith({ prn: "PRN-DEMO-0002" });
+    expect(v1.acked).toBe(true);
+    expect(v2.acked).toBe(true);
+  });
 });
 
 describe("consumeDlqBatch", () => {
@@ -125,20 +202,56 @@ describe("consumeDlqBatch", () => {
       queue: "terremotocolombia-needs-dlq",
       messageId: "dead-1",
       attempts: 6,
-      payload: { need: { title: "X" } },
+      payload: { need: "[redacted]" },
     });
     expect(message.acked).toBe(true);
   });
 
-  it("ack INCONDICIONAL: un fallo al persistir no dead-letterea la carta muerta", async () => {
+  it("hace retry si no puede persistir el recibo (no ack silencioso)", async () => {
     const persist = vi.fn().mockRejectedValue(new Error("db caida"));
     const message = fakeMessage("dead-2", {});
     await consumeDlqBatch(
       { queue: "terremotocolombia-needs-dlq", messages: [message] },
       persist,
     );
+    expect(persist).toHaveBeenCalledTimes(3);
+    expect(message.acked).toBe(false);
+    expect(message.retried).toBe(true);
+  });
+
+  it("preserva errorSummary anidado en un envelope v2 y redacta fileBase64", async () => {
+    const persist = vi.fn().mockResolvedValue(undefined);
+    const message = fakeMessage(
+      "dead-v2",
+      {
+        ...QUEUE_PROTOCOL_FIXTURES.importsV2,
+        payload: {
+          ...QUEUE_PROTOCOL_FIXTURES.importsV2.payload,
+          fileBase64: "QUFBQQ==",
+          errorSummary: "Falló el apply: timeout",
+        },
+      },
+      4,
+    );
+    await consumeDlqBatch(
+      { queue: "terremotocolombia-imports-dlq", messages: [message] },
+      persist,
+    );
+    expect(persist).toHaveBeenCalledWith({
+      queue: "terremotocolombia-imports-dlq",
+      messageId: "dead-v2",
+      attempts: 4,
+      payload: expect.objectContaining({
+        family: "imports",
+        payload: expect.objectContaining({
+          importId: "imp-demo-v2",
+          fileBase64: "[redacted]",
+          errorSummary: "Falló el apply: timeout",
+        }),
+      }),
+    });
+    expect(JSON.stringify(persist.mock.calls)).not.toContain("QUFBQQ==");
     expect(message.acked).toBe(true);
-    expect(message.retried).toBe(false);
   });
 
   it("marca como fallido el job de necesidad cuando agota reintentos", async () => {
@@ -153,8 +266,45 @@ describe("consumeDlqBatch", () => {
       { onNeedDeadLetter },
     );
 
-    expect(onNeedDeadLetter).toHaveBeenCalledWith(body);
+    expect(onNeedDeadLetter).toHaveBeenCalledWith({
+      jobId: "need-dead-1",
+      need: { title: "Demo" },
+      location: undefined,
+    });
     expect(message.acked).toBe(true);
+  });
+});
+
+describe("consumeUnknownQueueBatch", () => {
+  it("persiste un recibo de cuarentena y hace ack", async () => {
+    const persist = vi.fn().mockResolvedValue(undefined);
+    const message = fakeMessage("unk-1", { need: { title: "X" } });
+    await consumeUnknownQueueBatch(
+      { queue: "cola-inventada", messages: [message] },
+      persist,
+    );
+    expect(persist).toHaveBeenCalledWith({
+      queue: "cola-inventada",
+      messageId: "unk-1",
+      attempts: 1,
+      payload: { reason: "unknown_queue", body: { need: "[redacted]" } },
+      action: "queue.quarantine",
+      reason: "unknown_queue",
+    });
+    expect(message.acked).toBe(true);
+    expect(message.retried).toBe(false);
+  });
+
+  it("hace retry si no puede persistir el recibo (no ack silencioso)", async () => {
+    const persist = vi.fn().mockRejectedValue(new Error("db caida"));
+    const message = fakeMessage("unk-2", {});
+    await consumeUnknownQueueBatch(
+      { queue: "cola-inventada", messages: [message] },
+      persist,
+    );
+    expect(persist).toHaveBeenCalledTimes(3);
+    expect(message.acked).toBe(false);
+    expect(message.retried).toBe(true);
   });
 });
 
@@ -186,5 +336,42 @@ describe("persistDeadLetter (integración)", () => {
     expect(mine!.targetType).toBe("queue");
     expect(mine!.targetId).toBe("terremotocolombia-needs-dlq-staging");
     expect((mine!.metadata as { attempts?: number }).attempts).toBe(6);
+    expect((mine!.metadata as { payload?: { need?: string } }).payload).toEqual({
+      need: "[redacted]",
+    });
+  });
+
+  it("preserva errorSummary y no copia fileBase64 al audit_log", async () => {
+    const messageId = `test-dead-import-${Date.now()}`;
+    await persistDeadLetter({
+      queue: "terremotocolombia-imports-dlq-staging",
+      messageId,
+      attempts: 4,
+      payload: {
+        importId: "imp-demo-1",
+        mode: "process",
+        fileBase64: "QUFBQQ==",
+        errorSummary: "Falló el process: timeout",
+      },
+    });
+    const db = getDb();
+    const rows = await db
+      .select()
+      .from(schema.auditLog)
+      .where(eq(schema.auditLog.action, "queue.dead_letter"))
+      .orderBy(desc(schema.auditLog.createdAt))
+      .limit(5);
+    const mine = rows.find(
+      (row) => (row.metadata as { messageId?: string } | null)?.messageId === messageId,
+    );
+    expect(mine).toBeDefined();
+    const metadata = mine!.metadata as {
+      payload?: { fileBase64?: string; importId?: string };
+      errorSummary?: string;
+    };
+    expect(metadata.payload?.importId).toBe("imp-demo-1");
+    expect(metadata.payload?.fileBase64).toBe("[redacted]");
+    expect(metadata.errorSummary).toBe("Falló el process: timeout");
+    expect(JSON.stringify(mine!.metadata)).not.toContain("QUFBQQ==");
   });
 });

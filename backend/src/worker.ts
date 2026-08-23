@@ -27,7 +27,9 @@ import {
   CRON_GEOCODE,
   CRON_PERSON_RECONCILE,
   dispatchCron,
+  listCronIncidentScopes,
 } from "./services/cron-jobs.js";
+import { persistUnhandledCron } from "./lib/cron-audit.js";
 import { registerJobBindings } from "./lib/job-dispatch.js";
 import { recordNeedPublicationState } from "./modules/needs/infrastructure/needs-publication-queue.js";
 import {
@@ -41,6 +43,7 @@ import {
   consumeImportsBatch,
   consumeMatcherBatch,
   consumeNeedsBatch,
+  consumeUnknownQueueBatch,
   persistDeadLetter,
   type IncomingQueueBatch,
 } from "./lib/queue-consumer.js";
@@ -258,11 +261,24 @@ export default {
         // los alcanza. Se registran aqui para que el seam de despacho los vea.
         registerJobBindings(env);
         const now = controller.scheduledTime || Date.now();
-        await dispatchCron(controller.cron, now, {
+        const handlers = {
           [CRON_EARTHQUAKES]: syncEarthquakes,
           [CRON_GEOCODE]: geocodePending,
           [CRON_PERSON_RECONCILE]: reconcilePeople,
-        });
+        };
+        const errors: unknown[] = [];
+        for (const scope of listCronIncidentScopes()) {
+          try {
+            await dispatchCron(controller.cron, now, handlers, {
+              organizationId: scope.organizationId,
+              incidentId: scope.incidentId,
+              onUnhandled: persistUnhandledCron,
+            });
+          } catch (err) {
+            errors.push(err);
+          }
+        }
+        if (errors[0] !== undefined) throw errors[0];
       })(),
     );
   },
@@ -279,68 +295,74 @@ export default {
     registerJobBindings(env);
     const kind = classifyQueue(batch.queue);
     const startedAt = performance.now();
-    let outcome: "ok" | "error" = "ok";
+    let outcome: "ok" | "error" | "unhandled" = "ok";
     try {
-    if (kind === "needs") {
-      await consumeNeedsBatch(batch, {
-        publish: async (job) => {
-          // Import perezoso, como hacia el processor de BullMQ: el modulo de
-          // needs (composition root) no entra en el arranque del isolate.
-          const { publishNeed } = await import("./modules/needs/needs-module.js");
-          return job.location
-            ? publishNeed.executeAtLocation(job.need, job.location)
-            : publishNeed.execute(job.need);
-        },
-        markCompleted: (jobId, result) =>
-          recordNeedPublicationState(jobId, "completed", { result }),
-      });
-      return;
+    switch (kind) {
+      case "needs":
+        await consumeNeedsBatch(batch, {
+          publish: async (job) => {
+            // Import perezoso, como hacia el processor de BullMQ: el modulo de
+            // needs (composition root) no entra en el arranque del isolate.
+            const { publishNeed } = await import("./modules/needs/needs-module.js");
+            return job.location
+              ? publishNeed.executeAtLocation(job.need, job.location)
+              : publishNeed.execute(job.need);
+          },
+          markCompleted: (jobId, result) =>
+            recordNeedPublicationState(jobId, "completed", { result }),
+        });
+        break;
+      case "imports":
+        await consumeImportsBatch(batch, {
+          run: async (job) => {
+            // Mismo despacho por modo que el processor BullMQ de compose.
+            const imports = await import("./services/patient-imports/index.js");
+            if (job.mode === "ocr") return imports.ingestOcrImport(job.importId, job.imageUrl);
+            if (job.mode === "apply") return imports.applyImport(job.importId, job.actorId ?? null);
+            return imports.processImport(job.importId);
+          },
+        });
+        break;
+      case "matcher":
+        await consumeMatcherBatch(batch, {
+          run: async (job) => {
+            // Import perezoso, mismo motivo que needs/imports: services/matcher
+            // no entra en el arranque del isolate.
+            const { processMatcherMessage } = await import("./services/matcher/index.js");
+            return processMatcherMessage(job);
+          },
+        });
+        break;
+      case "needs-dlq":
+      case "imports-dlq":
+      case "matcher-dlq":
+        await consumeDlqBatch(batch, persistDeadLetter, {
+          onNeedDeadLetter: (job) =>
+            recordNeedPublicationState(job.jobId!, "failed", {
+              failedReason: "No se pudo publicar después de varios intentos.",
+            }),
+          onImportDeadLetter: async (job) => {
+            const { markImportDeadLettered } = await import("./services/patient-imports/index.js");
+            await markImportDeadLettered(
+              job.importId,
+              `Falló el ${job.mode}: reintentos agotados (ver Auditoría, queue.dead_letter).`,
+              job.mode === "apply" ? "apply" : "process",
+            );
+          },
+        });
+        break;
+      case "unknown":
+        outcome = "unhandled";
+        await consumeUnknownQueueBatch(batch, persistDeadLetter);
+        break;
+      default: {
+        const _exhaustive: never = kind;
+        outcome = "unhandled";
+        await consumeUnknownQueueBatch(batch, persistDeadLetter);
+        void _exhaustive;
+        break;
+      }
     }
-    if (kind === "imports") {
-      await consumeImportsBatch(batch, {
-        run: async (job) => {
-          // Mismo despacho por modo que el processor BullMQ de compose.
-          const imports = await import("./services/patient-imports/index.js");
-          if (job.mode === "ocr") return imports.ingestOcrImport(job.importId, job.imageUrl);
-          if (job.mode === "apply") return imports.applyImport(job.importId, job.actorId ?? null);
-          return imports.processImport(job.importId);
-        },
-      });
-      return;
-    }
-    if (kind === "matcher") {
-      await consumeMatcherBatch(batch, {
-        run: async (job) => {
-          // Import perezoso, mismo motivo que needs/imports: services/matcher
-          // no entra en el arranque del isolate.
-          const { processMatcherMessage } = await import("./services/matcher/index.js");
-          return processMatcherMessage(job);
-        },
-      });
-      return;
-    }
-    if (kind === "needs-dlq" || kind === "imports-dlq" || kind === "matcher-dlq") {
-      await consumeDlqBatch(batch, persistDeadLetter, {
-        onNeedDeadLetter: (job) =>
-          recordNeedPublicationState(job.jobId!, "failed", {
-            failedReason: "No se pudo publicar después de varios intentos.",
-          }),
-        onImportDeadLetter: async (job) => {
-          const { markImportDeadLettered } = await import("./services/patient-imports/index.js");
-          await markImportDeadLettered(
-            job.importId,
-            `Falló el ${job.mode}: reintentos agotados (ver Auditoría, queue.dead_letter).`,
-            job.mode === "apply" ? "apply" : "process",
-          );
-        },
-      });
-      return;
-    }
-    // Cola desconocida: ack para no envenenar la entrega. El fallo real
-    // (config y codigo desincronizados) no se arregla reintentando — mismo
-    // criterio que dispatchCron con una expresion no reconocida.
-    console.warn(`[queue] cola no reconocida: "${batch.queue}" — se hace ack sin procesar.`);
-    for (const message of batch.messages) message.ack();
     } catch (error) {
       outcome = "error";
       throw error;
