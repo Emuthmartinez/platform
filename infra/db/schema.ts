@@ -755,15 +755,24 @@ export const donations = pgTable(
     // Ciclo de vida de la donación. Hoy la app nunca lo muta (insert-only), por
     // eso worker/tables.ts la trata como append-only ("ignore").
     status: text("status").notNull().default("intent"),
+    ...incidentOwnershipColumns(),
   },
-  (t) => [index("donations_created_at_idx").on(t.createdAt.desc())],
+  (t) => [
+    index("donations_created_at_idx").on(t.createdAt.desc()),
+    incidentOwnershipFk("donations", t),
+  ],
 );
 
 /* ------------------------------------------------------------ click_counters */
-export const clickCounters = pgTable("click_counters", {
-  key: text("key").primaryKey(),
-  count: integer("count").notNull().default(0),
-});
+export const clickCounters = pgTable(
+  "click_counters",
+  {
+    key: text("key").primaryKey(),
+    count: integer("count").notNull().default(0),
+    ...incidentOwnershipColumns(),
+  },
+  (t) => [incidentOwnershipFk("click_counters", t)],
+);
 
 export const clickCounterDedup = pgTable(
   "click_counter_dedup",
@@ -771,8 +780,12 @@ export const clickCounterDedup = pgTable(
     counterKey: text("counter_key").notNull(),
     ipHash: text("ip_hash").notNull(),
     createdAt: epochMs("created_at").notNull(),
+    ...incidentOwnershipColumns(),
   },
-  (t) => [primaryKey({ columns: [t.counterKey, t.ipHash] })],
+  (t) => [
+    primaryKey({ columns: [t.counterKey, t.ipHash] }),
+    incidentOwnershipFk("click_counter_dedup", t),
+  ],
 );
 
 /* ------------------------------------------------------------- geocode_cache */
@@ -1368,13 +1381,25 @@ export const auditLog = pgTable(
     targetType: text("target_type"), // "report", "user", "role", ...
     targetId: text("target_id"),
     metadata: jsonb("metadata"),
-    ipHash: text("ip_hash"), // IP hasheada (privacidad), nunca cruda
+    ipHash: text("ip_hash"),
     createdAt: epochMs("created_at").notNull(),
+    scopeType: text("scope_type"),
+    ...incidentOwnershipColumns(),
   },
   (t) => [
     index("idx_audit_created").on(t.createdAt.desc()),
     index("idx_audit_actor").on(t.actorUserId),
     index("idx_audit_target").on(t.targetType, t.targetId),
+    incidentOwnershipFk("audit_log", t),
+    check(
+      "audit_log_scope_ids",
+      sql`(
+        (${t.scopeType} IS NULL AND ${t.organizationId} IS NULL AND ${t.incidentId} IS NULL)
+        OR (${t.scopeType} = 'global' AND ${t.organizationId} IS NULL AND ${t.incidentId} IS NULL)
+        OR (${t.scopeType} = 'organization' AND ${t.organizationId} IS NOT NULL AND ${t.incidentId} IS NULL)
+        OR (${t.scopeType} = 'incident' AND ${t.organizationId} IS NOT NULL AND ${t.incidentId} IS NOT NULL)
+      )`,
+    ),
   ],
 );
 
@@ -1427,11 +1452,13 @@ export const apiKeys = pgTable(
     lastUsedAt: epochMs("last_used_at"), // se actualiza fire-and-forget en cada uso
     expiresAt: epochMs("expires_at"), // NULL = sin expiración
     revokedAt: epochMs("revoked_at"), // NULL = activa (soft delete)
-    revokedBy: text("revoked_by"), // user.id que la revocó (self o admin)
+    revokedBy: text("revoked_by"),
+    ...incidentOwnershipColumns(),
   },
   (t) => [
-    uniqueIndex("idx_api_keys_hash").on(t.keyHash), // lookup O(1) en auth
-    index("idx_api_keys_user").on(t.userId), // listar "mis llaves"
+    uniqueIndex("idx_api_keys_hash").on(t.keyHash),
+    index("idx_api_keys_user").on(t.userId),
+    incidentOwnershipFk("api_keys", t),
   ],
 );
 
