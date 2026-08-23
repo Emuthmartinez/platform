@@ -127,6 +127,13 @@
       "when": 1787452246624,
       "tag": "0017_hospitals_tenant",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1787452349927,
+      "tag": "0018_family_search_tenant",
+      "breakpoints": true
     }
   ]
 }
