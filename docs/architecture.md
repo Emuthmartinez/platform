@@ -404,6 +404,19 @@ surface. Turnstile and rate limiting remain the real protection.
 > ceiling before the fallback. The route middleware still applies its declared
 > limit. If Valkey is absent, the exact route limit uses a bounded per-isolate
 > map; the map expires inactive keys and has a hard size cap.
+>
+> Queue consumers classify names by exact registry
+> (`backend/src/lib/queue-registry.ts`). They validate bodies with a dual
+> decoder (`backend/src/lib/queue-protocol-schema.ts` +
+> `backend/src/lib/queue-protocol.ts`) before domain code. This clone has no
+> `packages/contracts` yet. Producers still emit the legacy v1 body. An unknown
+> queue name is quarantined to `audit_log` (`queue.quarantine`). DLQ receipts
+> also go to `audit_log` (`queue.dead_letter`) with a redacted payload and the
+> original import `errorSummary`. Neither path acknowledges until that receipt
+> persists. Cron unknown expressions log `outcome: unhandled` and persist
+> `cron.unhandled`; they do not look like success. Earthquake freshness
+> still uses `sync.fetchedAt`. This clone does not deploy Workers unless
+> `ENABLE_PLATFORM_DEPLOYS` is true.
 
 - Valkey backs BullMQ and the distributed rate limiter.
 - The `migrate` service in `docker-compose.prod.yml` uses the same backend

@@ -14,7 +14,9 @@ import {
   CRON_EXPRESSIONS,
   CRON_GEOCODE,
   CRON_PERSON_RECONCILE,
+  cronIdempotencyKey,
   dispatchCron,
+  listCronIncidentScopes,
 } from "@/services/cron-jobs";
 
 afterEach(() => {
@@ -66,19 +68,26 @@ describe("dispatchCron", () => {
     expect(geocode).not.toHaveBeenCalled();
   });
 
-  it("una expresión desconocida avisa y vuelve, sin lanzar", async () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  it("una expresión desconocida registra outcome unhandled y no lanza", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
     const sismos = vi.fn(async () => {});
+    const onUnhandled = vi.fn().mockResolvedValue(undefined);
 
     await expect(
-      dispatchCron("0 3 * * *", 1_700_000_000_000, {
-        [CRON_EARTHQUAKES]: sismos,
-      }),
-    ).resolves.toBeUndefined();
+      dispatchCron(
+        "0 3 * * *",
+        1_700_000_000_000,
+        {
+          [CRON_EARTHQUAKES]: sismos,
+        },
+        { onUnhandled },
+      ),
+    ).resolves.toBe("unhandled");
 
     expect(sismos).not.toHaveBeenCalled();
-    expect(warn).toHaveBeenCalledOnce();
-    expect(String(warn.mock.calls[0]?.[0])).toContain("0 3 * * *");
+    expect(onUnhandled).toHaveBeenCalledWith("0 3 * * *");
+    expect(JSON.stringify(error.mock.calls)).toContain("unhandled");
+    expect(JSON.stringify(error.mock.calls)).toContain("0 3 * * *");
   });
 
   it("propaga el fallo del handler (el reintento de Cloudflare es deseable)", async () => {
@@ -89,6 +98,38 @@ describe("dispatchCron", () => {
     await expect(
       dispatchCron(CRON_EARTHQUAKES, 1, { [CRON_EARTHQUAKES]: boom }),
     ).rejects.toThrow("USGS caído");
+  });
+
+  it("builds a tenant + job-kind + schedule-window idempotency key", () => {
+    const first = cronIdempotencyKey({
+      organizationId: "org_mallanet",
+      incidentId: "inc_terremoto_colombia_2026",
+      jobKind: "earthquakes",
+      scheduledTimeMs: 1_700_000_000_000,
+    });
+    const sameWindow = cronIdempotencyKey({
+      organizationId: "org_mallanet",
+      incidentId: "inc_terremoto_colombia_2026",
+      jobKind: "earthquakes",
+      scheduledTimeMs: 1_700_000_000_000 + 60_000,
+    });
+    const nextWindow = cronIdempotencyKey({
+      organizationId: "org_mallanet",
+      incidentId: "inc_terremoto_colombia_2026",
+      jobKind: "earthquakes",
+      scheduledTimeMs: 1_700_000_000_000 + 5 * 60_000,
+    });
+    expect(first).toBe(sameWindow);
+    expect(nextWindow).not.toBe(first);
+    expect(first).toContain("org_mallanet");
+    expect(first).toContain("earthquakes");
+  });
+
+  it("enumerates Colombia as the only current cron incident", () => {
+    const scopes = listCronIncidentScopes();
+    expect(scopes).toHaveLength(1);
+    expect(scopes[0]?.organizationId).toBe("org_mallanet");
+    expect(scopes[0]?.incidentId).toBe("inc_terremoto_colombia_2026");
   });
 });
 
