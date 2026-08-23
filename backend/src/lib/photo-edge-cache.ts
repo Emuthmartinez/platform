@@ -10,10 +10,13 @@
  * Solo se cachean 200s: un 500 de arranque frío o un 404 transitorio no deben
  * quedar clavados. El TTL lo gobierna el Cache-Control que ya emite
  * setPublicPhotoHeaders() (immutable, 1 año) — cache.put lo respeta. La clave
- * es un GET desnudo de la URL (sin cabeceras): las respuestas de foto son
- * uniformes (ACAO *, sin Vary), así que la URL identifica los bytes, y un
- * request con Range u otras cabeceras no fragmenta ni rompe el put.
+ * incluye la partición de tenant (KTD12) para que un cambio de hostname no
+ * reutilice bytes de otro incidente.
  */
+
+import { randomUUID } from "node:crypto";
+import type { TenantScope } from "@/tenant/scope";
+import { tenantCachePartition } from "@/tenant/scope";
 
 /** Subconjunto estructural de la Cache API de Workers (para no depender de lib DOM). */
 export interface EdgeCache {
@@ -42,19 +45,28 @@ export async function servePhotoCached(opts: {
   cache: EdgeCache;
   fetchOrigin: () => Promise<Response>;
   waitUntil: (p: Promise<unknown>) => void;
+  tenant: TenantScope;
 }): Promise<Response> {
-  const key = new Request(opts.url, { method: "GET" });
+  const keyUrl = new URL(opts.url);
+  keyUrl.searchParams.set("__edge_tenant", tenantCachePartition(opts.tenant));
+  const key = new Request(keyUrl, { method: "GET" });
   const cached = await opts.cache.match(key);
   if (cached) {
     const res = new Response(cached.body, cached);
+    res.headers.delete("x-request-id");
+    res.headers.set("x-request-id", randomUUID());
     res.headers.set("x-photo-edge-cache", "hit");
     return res;
   }
   const fresh = await opts.fetchOrigin();
   if (fresh.status === 200) {
-    opts.waitUntil(opts.cache.put(key, fresh.clone()));
+    const stored = fresh.clone();
+    stored.headers.delete("x-request-id");
+    opts.waitUntil(opts.cache.put(key, stored));
   }
   const res = new Response(fresh.body, fresh);
+  res.headers.delete("x-request-id");
+  res.headers.set("x-request-id", randomUUID());
   res.headers.set("x-photo-edge-cache", "miss");
   return res;
 }

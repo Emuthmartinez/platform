@@ -63,6 +63,9 @@ const schema = z.object({
   // pone Cloudflare (u otro proxy que reescriba la cabecera en cada hop)
   // delante, configura explícitamente TRUSTED_IP_HEADER=cf-connecting-ip.
   TRUSTED_IP_HEADER: z.string().default(""),
+  // Dev/test pin for tenant lookup when the Worker/Caddy header is absent.
+  // Required when NODE_ENV=development. Production Workers use the URL host.
+  PINNED_DEPLOYMENT_HOSTNAME: z.string().optional(),
 
   // Cloudflare Turnstile (prueba de humanidad en writes públicos). OPCIONAL:
   // sin TURNSTILE_SECRET_KEY el middleware requireHuman se desactiva (dev local).

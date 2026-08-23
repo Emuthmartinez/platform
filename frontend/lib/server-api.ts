@@ -8,8 +8,24 @@ const BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ||
   "http://localhost:8080";
 
+const TRUSTED_HOSTNAME_HEADER = "x-mallanet-trusted-hostname";
+
+function trustedHostnameHeaders(): Record<string, string> {
+  const publicBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+  try {
+    const hostname = new URL(publicBase).hostname.toLowerCase();
+    if (!hostname) return {};
+    return { [TRUSTED_HOSTNAME_HEADER]: hostname };
+  } catch {
+    return {};
+  }
+}
+
 export async function serverApiGet<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, { cache: "no-store" });
+  const res = await fetch(`${BASE_URL}${path}`, {
+    cache: "no-store",
+    headers: trustedHostnameHeaders(),
+  });
   if (!res.ok) {
     throw new Error(`GET ${path} → ${res.status}`);
   }
@@ -25,6 +41,7 @@ export async function serverApiGetCached<T>(
 ): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
     next: { revalidate: revalidateSeconds },
+    headers: trustedHostnameHeaders(),
   });
   if (!res.ok) {
     throw new Error(`GET ${path} → ${res.status}`);
@@ -34,7 +51,10 @@ export async function serverApiGetCached<T>(
 
 // Variante para detalle: devuelve null en 404 (para notFound()).
 export async function serverApiGetOrNull<T>(path: string): Promise<T | null> {
-  const res = await fetch(`${BASE_URL}${path}`, { cache: "no-store" });
+  const res = await fetch(`${BASE_URL}${path}`, {
+    cache: "no-store",
+    headers: trustedHostnameHeaders(),
+  });
   if (res.status === 404) return null;
   if (!res.ok) {
     throw new Error(`GET ${path} → ${res.status}`);

@@ -13,6 +13,7 @@ import { asyncHandler, rateLimit } from "@/middleware";
 import { env } from "@/config/env";
 import { logUpstreamFailure } from "@/lib/db-error";
 import { badGateway, HttpError } from "@/lib/errors";
+import { requireTenantScope } from "@/middleware/tenant";
 
 export const opRouter = Router();
 
@@ -26,7 +27,8 @@ function apiUrl(): string {
 function requestOrigin(req: import("express").Request): string {
   const origin = req.headers.origin;
   if (origin) return Array.isArray(origin) ? origin[0]! : origin;
-  return `${req.protocol}://${req.get("host") ?? ""}`;
+  const scope = requireTenantScope(req);
+  return `https://${scope.hostname}`;
 }
 
 function forwardHeaders(req: import("express").Request): Record<string, string> {

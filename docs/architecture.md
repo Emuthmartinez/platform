@@ -174,7 +174,9 @@ require human review before any deployment.
   it. On Cloudflare Workers, a strict public-path allowlist also uses
   `caches.default`. Only anonymous `200` responses with an explicit public
   `s-maxage` enter this edge cache. Authenticated requests and photo routes do
-  not share these JSON entries.
+  not share these JSON entries. Cache keys include the tenant partition
+  (organization, incident, cache epoch) and an allowlisted Origin variant.
+  A cache hit never replays a stored `X-Request-Id`.
 - The API creates an `X-Request-Id` for every request. It returns this ID to
   the browser and includes it in structured server logs. Routine access logs
   use a one-percent sample. The API keeps every 5xx response, request over
@@ -581,6 +583,15 @@ flowchart TB
 - The same entrypoint checks `caches.default` before Express for allowlisted
   public JSON and immutable photos. This cache is local to a Cloudflare data
   center. It reduces repeated polls without caching authenticated responses.
+  The Fetch handler first canonicalizes `new URL(request.url).hostname`,
+  overwrites `x-mallanet-trusted-hostname`, and looks up `deployments`.
+  An unknown hostname returns `{ error: "Ruta no encontrada." }` before
+  cache or Express. `/api/healthz` and `/api/readyz` skip tenant lookup.
+  Express does not use `req.hostname` or `X-Forwarded-Host` for tenant
+  authority (`trust proxy` stays true for client IP).
+- All three wrangler configs set `workers_dev: false` at the top level and
+  under `env.staging`. They do not declare `routes`. Custom domains attach
+  through the account API.
 - `EDGE_RATE_LIMITER` is a Workers Rate Limiting binding. Production and
   staging use separate namespaces, so test traffic cannot consume production
   counters.
@@ -619,7 +630,9 @@ local development too, because it starts Postgres and Valkey for you.
   (one Caddy instance, reverse-proxying to `frontend:3000`,
   `backend:8080`, and `admin:3000` by hostname, reading
   `WEB_DOMAIN`/`API_DOMAIN`/`ADMIN_DOMAIN`/`ACME_EMAIL` from the
-  environment through `{$VAR}` placeholders).
+  environment through `{$VAR}` placeholders). The API site drops any client
+  `X-Mallanet-Trusted-Hostname` and sets it from `{host}` so Express can
+  resolve the tenant without reading `X-Forwarded-Host`.
 - Postgres and Valkey co-locate on the same VPS by default (services `db`
   and `valkey`). Migrations run as the one-off `migrate` container, gated
   before `backend` and `worker` start.

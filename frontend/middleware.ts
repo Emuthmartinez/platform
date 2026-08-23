@@ -6,10 +6,11 @@ import { NextResponse, type NextRequest } from "next/server";
 // no un sitio. Este middleware devuelve 404 a cualquier ruta que no sea /api/*
 // cuando la petición llega por un host `api.*`.
 //
-// Se decide por el HOST de la request (no por el pod): ambos tiers son el mismo
-// binario, así que la única señal fiable de "esto es la API" es el hostname.
-// Cubre api.<dominio> (config/deployment.config.json → domains.api) y
-// api-staging.<dominio> (el host API de staging).
+// Se decide por el hostname de Next (`request.nextUrl.hostname`), no por la
+// cabecera Host: ambos tiers son el mismo binario, así que la única señal
+// fiable de "esto es la API" es el hostname. Cubre api.<dominio>
+// (config/deployment.config.json → domains.api) y api-staging.<dominio>
+// (el host API de staging). `nextUrl.hostname` no incluye puerto.
 //
 // Excepciones que SÍ pasan aunque no sean /api/*:
 //   - /api/*        : la superficie real (incluye /api/readyz del health-check
@@ -30,7 +31,7 @@ function isApiHost(host: string | null): boolean {
 const ALLOWED_NON_API = ["/_next/", "/favicon.ico", "/robots.txt"];
 
 export function middleware(request: NextRequest) {
-  const host = request.headers.get("host");
+  const host = request.nextUrl.hostname;
   if (!isApiHost(host)) return NextResponse.next();
 
   const { pathname } = request.nextUrl;

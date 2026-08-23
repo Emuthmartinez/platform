@@ -4,6 +4,8 @@
   "main": ".open-next/worker.js",
   "compatibility_date": "2026-08-01",
   "compatibility_flags": ["nodejs_compat"],
+  // KTD7: disable *.workers.dev. Do not add `routes`. Repeat under env.staging.
+  "workers_dev": false,
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS",
@@ -29,6 +31,7 @@
   "env": {
     "staging": {
       "name": "terremotocolombia-admin-staging",
+      "workers_dev": false,
       "compatibility_date": "2026-08-01",
       "compatibility_flags": ["nodejs_compat"],
       "assets": {

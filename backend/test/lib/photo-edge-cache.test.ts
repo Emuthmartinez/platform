@@ -4,21 +4,30 @@ import {
   servePhotoCached,
   type EdgeCache,
 } from "@/lib/photo-edge-cache";
+import { createTenantScope } from "@/tenant/scope";
+
+const TENANT = createTenantScope({
+  organizationId: "org_mallanet",
+  incidentId: "inc_terremoto_colombia_2026",
+  hostname: "api.example.org",
+});
 
 function fakeCache(initial?: Response): {
   cache: EdgeCache;
   puts: Array<{ url: string; response: Response }>;
 } {
   const puts: Array<{ url: string; response: Response }> = [];
-  let stored = initial;
+  const stored = new Map<string, Response>();
+  if (initial) stored.set("__default", initial);
   return {
     puts,
     cache: {
-      async match() {
-        return stored;
+      async match(key) {
+        return stored.get(key.url) ?? stored.get("__default");
       },
       async put(key, response) {
-        stored = response;
+        stored.delete("__default");
+        stored.set(key.url, response);
         puts.push({ url: key.url, response });
       },
     },
@@ -52,6 +61,7 @@ describe("servePhotoCached", () => {
     const res = await servePhotoCached({
       url: URL_,
       cache,
+      tenant: TENANT,
       fetchOrigin: async () =>
         new Response("bytes", { status: 200, headers: { "Content-Type": "image/png" } }),
       waitUntil: (p) => pending.push(p),
@@ -60,16 +70,26 @@ describe("servePhotoCached", () => {
     expect(res.status).toBe(200);
     expect(res.headers.get("x-photo-edge-cache")).toBe("miss");
     expect(puts).toHaveLength(1);
+    expect(new URL(puts[0]!.url).searchParams.get("__edge_tenant")).toBe(
+      "org_mallanet:inc_terremoto_colombia_2026:0",
+    );
+    expect(res.headers.get("x-request-id")).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
   });
 
   it("hit: sirve del cache sin tocar el origen y marca hit", async () => {
     const { cache } = fakeCache(
-      new Response("cached-bytes", { status: 200, headers: { "Content-Type": "image/png" } }),
+      new Response("cached-bytes", {
+        status: 200,
+        headers: { "Content-Type": "image/png", "x-request-id": "stored-id" },
+      }),
     );
     let originCalls = 0;
     const res = await servePhotoCached({
       url: URL_,
       cache,
+      tenant: TENANT,
       fetchOrigin: async () => {
         originCalls += 1;
         return new Response("fresh", { status: 200 });
@@ -79,6 +99,7 @@ describe("servePhotoCached", () => {
     expect(originCalls).toBe(0);
     expect(res.headers.get("x-photo-edge-cache")).toBe("hit");
     expect(await res.text()).toBe("cached-bytes");
+    expect(res.headers.get("x-request-id")).not.toBe("stored-id");
   });
 
   it("no cachea errores: un 404/500 pasa de largo sin put", async () => {
@@ -87,6 +108,7 @@ describe("servePhotoCached", () => {
       const res = await servePhotoCached({
         url: URL_,
         cache,
+        tenant: TENANT,
         fetchOrigin: async () => new Response("nope", { status }),
         waitUntil: () => {},
       });
@@ -100,6 +122,7 @@ describe("servePhotoCached", () => {
     const res = await servePhotoCached({
       url: URL_,
       cache,
+      tenant: TENANT,
       fetchOrigin: async () =>
         new Response(null, { status: 302, headers: { Location: "https://cdn.example.org/x.jpg" } }),
       waitUntil: () => {},

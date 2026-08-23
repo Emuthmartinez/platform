@@ -14,6 +14,7 @@ import { asyncHandler, rateLimit } from "@/middleware";
 import { requireCapability } from "@/middleware/auth";
 import { serviceUnavailable } from "@/lib/errors";
 import { expectedFormTokens } from "@/services/psychology-help";
+import { publicApiOrigin } from "@/middleware/tenant";
 
 export const psychologyRouter = Router();
 
@@ -66,7 +67,7 @@ psychologyRouter.get(
     if (!token) {
       throw serviceUnavailable("No hay secreto base para derivar el token del callback.");
     }
-    const url = `${req.protocol}://${req.get("host")}/api/stats/psychology-help`;
+    const url = `${publicApiOrigin(req)}/api/stats/psychology-help`;
     const script = [
       "function onFormSubmit() {",
       `  UrlFetchApp.fetch("${url}", {`,

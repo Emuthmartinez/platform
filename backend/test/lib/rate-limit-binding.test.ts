@@ -18,7 +18,9 @@ describe("Cloudflare rate limit binding", () => {
     delete process.env.RATE_LIMIT_DISABLED;
     const limit = vi.fn().mockResolvedValue({ success: false });
     registerWorkerRateLimiter({ limit });
-    await expect(checkRateLimit("scope:hashed-actor", { limit: 120 })).resolves.toBe(false);
-    expect(limit).toHaveBeenCalledWith({ key: "scope:hashed-actor" });
+    await expect(
+      checkRateLimit("scope:hashed-actor", { limit: 120 }, "flood:hashed-actor"),
+    ).resolves.toBe(false);
+    expect(limit).toHaveBeenCalledWith({ key: "flood:hashed-actor" });
   });
 });

@@ -17,6 +17,7 @@
 import { createServer } from "node:http";
 import { httpServerHandler } from "cloudflare:node";
 import { app } from "./server.js";
+import { corsOrigins } from "./config/env.js";
 import { backfill, isEmpty, syncFromFeed } from "./services/earthquakes.js";
 import { runGeocode } from "./services/geocode-batch.js";
 import { reconcilePersonRecords } from "./services/person-records.js";
@@ -48,6 +49,12 @@ import {
   isCacheablePublicJsonPath,
   servePublicJsonCached,
 } from "./lib/json-edge-cache.js";
+import {
+  isTenantExemptPath,
+  overwriteTrustedHostnameHeader,
+  unknownHostPayload,
+} from "./tenant/hostname.js";
+import { loadDeploymentByHostname } from "./tenant/resolve.js";
 
 // El servidor se crea en ambito de modulo y NO se mueve dentro de fetch():
 // hacerlo daba 500/503 intermitentes porque cada isolate levantaba el suyo y la
@@ -193,38 +200,54 @@ async function reconcilePeople(): Promise<void> {
 }
 
 export default {
-  fetch(request: Request, env: WorkerEnv, ctx: Ctx): Promise<Response> {
+  async fetch(request: Request, env: WorkerEnv, ctx: Ctx): Promise<Response> {
     // Idempotente y barato (un Map.set por binding). Va aqui porque `env` solo
     // existe dentro del handler: leerlo en ambito global lanza "Disallowed
     // operation called within global scope".
     registerJobBindings(env);
     registerWorkerRateLimiter(env.EDGE_RATE_LIMITER);
-    // Fotos públicas: cache-first sobre caches.default ANTES de Express. Las
-    // cache rules de zona no alcanzan a un Worker con custom domain, así que
-    // el borde es este isolate (ver lib/photo-edge-cache.ts). El guard de
-    // `caches` mantiene el fichero inerte fuera de Workers (Node/compose no
-    // pasa por aquí, pero mejor no depender de un global que no existe).
-    const edgeCache = (globalThis as { caches?: { default?: EdgeCache } }).caches?.default;
-    if (edgeCache && request.method === "GET") {
-      const { pathname } = new URL(request.url);
-      if (isCacheablePhotoPath(pathname)) {
-        return servePhotoCached({
-          url: request.url,
-          cache: edgeCache,
-          fetchOrigin: () => nodeHandler.fetch(request, env, ctx),
-          waitUntil: (p) => ctx.waitUntil(p),
-        });
+
+    const url = new URL(request.url);
+    const { headers, canonical } = overwriteTrustedHostnameHeader(request);
+    const inbound = new Request(request, { headers });
+
+    const exempt = isTenantExemptPath(url.pathname);
+    if (!exempt) {
+      if (!canonical) {
+        return Response.json(unknownHostPayload(), { status: 404 });
       }
-      if (isCacheablePublicJsonPath(pathname)) {
-        return servePublicJsonCached({
-          request,
-          cache: edgeCache,
-          fetchOrigin: () => nodeHandler.fetch(request, env, ctx),
-          waitUntil: (p) => ctx.waitUntil(p),
-        });
+      const scope = await loadDeploymentByHostname(canonical);
+      if (!scope) {
+        return Response.json(unknownHostPayload(), { status: 404 });
+      }
+
+      const edgeCache =
+        (globalThis as { caches?: { default?: EdgeCache } }).caches?.default;
+      if (edgeCache && request.method === "GET") {
+        const { pathname } = url;
+        if (isCacheablePhotoPath(pathname)) {
+          return servePhotoCached({
+            url: inbound.url,
+            cache: edgeCache,
+            tenant: scope,
+            fetchOrigin: () => nodeHandler.fetch(inbound, env, ctx),
+            waitUntil: (p) => ctx.waitUntil(p),
+          });
+        }
+        if (isCacheablePublicJsonPath(pathname)) {
+          return servePublicJsonCached({
+            request: inbound,
+            cache: edgeCache,
+            tenant: scope,
+            corsOrigins,
+            fetchOrigin: () => nodeHandler.fetch(inbound, env, ctx),
+            waitUntil: (p) => ctx.waitUntil(p),
+          });
+        }
       }
     }
-    return nodeHandler.fetch(request, env, ctx);
+
+    return nodeHandler.fetch(inbound, env, ctx);
   },
 
   async scheduled(controller: ScheduledController, env: WorkerEnv, ctx: Ctx): Promise<void> {
