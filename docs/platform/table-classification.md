@@ -20,3 +20,10 @@ Scopes:
 psychology counter cannot stay a shared global key.
 
 Do not add a Drizzle table without a classification row in the same change.
+
+U7 expand order (one migration commit per group):
+
+1. Core catalog: `organizations`, `incidents`, `deployments`
+2. Later groups add nullable `organization_id` / `incident_id` plus the
+   composite FK to `incidents(organization_id, id)`. Campaign tables stay
+   in handwritten SQL because they are not in the drizzle-kit schema glob.

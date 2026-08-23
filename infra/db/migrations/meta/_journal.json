@@ -99,6 +99,13 @@
       "when": 1786913000001,
       "tag": "0013_campaign_photos",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1787451907599,
+      "tag": "0014_platform_core",
+      "breakpoints": true
     }
   ]
 }

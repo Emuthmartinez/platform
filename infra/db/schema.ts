@@ -31,10 +31,61 @@ import {
   primaryKey,
   index,
   uniqueIndex,
+  unique,
+  foreignKey,
+  check,
 } from "drizzle-orm/pg-core";
 
 // epoch-ms timestamp stored as BIGINT, surfaced as a JS number.
 const epochMs = (name: string) => bigint(name, { mode: "number" });
+
+/* ----------------------------------------------------------- organizations */
+// Accountable operator (KTD23). Seeded first tenant is Mallanet.org.
+export const organizations = pgTable("organizations", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  createdAt: epochMs("created_at").notNull(),
+});
+
+/* --------------------------------------------------------------- incidents */
+// Operational response period owned by one organization (KTD14, KTD23).
+// Unique (organization_id, id) is the FK target for every incident-scoped table.
+export const incidents = pgTable(
+  "incidents",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "restrict" }),
+    name: text("name").notNull(),
+    createdAt: epochMs("created_at").notNull(),
+  },
+  (t) => [unique("incidents_organization_id_id_unique").on(t.organizationId, t.id)],
+);
+
+/* ------------------------------------------------------------- deployments */
+// Canonical hostname → organization + active incident (KTD7 lookup source).
+// Hostname is stored already canonical: lowercase, no trailing dot.
+export const deployments = pgTable(
+  "deployments",
+  {
+    hostname: text("hostname").primaryKey(),
+    organizationId: text("organization_id").notNull(),
+    incidentId: text("incident_id").notNull(),
+    createdAt: epochMs("created_at").notNull(),
+  },
+  (t) => [
+    foreignKey({
+      name: "deployments_incident_ownership_fk",
+      columns: [t.organizationId, t.incidentId],
+      foreignColumns: [incidents.organizationId, incidents.id],
+    }).onDelete("restrict"),
+    check(
+      "deployments_hostname_canonical",
+      sql`${t.hostname} = lower(${t.hostname}) AND right(${t.hostname}, 1) <> '.'`,
+    ),
+  ],
+);
 
 /* ------------------------------------------------------------------ reports */
 export const reports = pgTable(

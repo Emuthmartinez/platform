@@ -22,5 +22,8 @@ cd backend
 MIGRATIONS_DIR=../infra/db/migrations doppler run -- npx tsx worker/migrate.ts
 ```
 
+U7 core (`0014_platform_core`) is applied on this isolated branch. Drift is
+clean at 65 tables.
+
 Do not copy Colombia `DOPPLER_TOKEN` or Cloudflare tokens into
 `Emuthmartinez/platform`. Do not set `ENABLE_PLATFORM_DEPLOYS`.
