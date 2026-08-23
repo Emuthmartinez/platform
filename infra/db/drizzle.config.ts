@@ -3,8 +3,8 @@
  *
  * Uso: `cd backend && npm run db:generate` (ver package.json: invoca
  * `drizzle-kit generate --config ../infra/db/drizzle.config.ts`). Requiere
- * DATABASE_URL solo para introspección opcional; generate() no necesita una
- * conexión viva.
+ * drizzle-kit 0.31.10 (U6 bump). `generate` must stay empty against the
+ * committed SQL until a real schema change lands.
  */
 // Sin `import { defineConfig } from "drizzle-kit"`: este archivo vive fuera de
 // backend/node_modules y un import en tiempo de carga no resuelve desde aquí.
