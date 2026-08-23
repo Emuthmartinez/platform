@@ -34,6 +34,7 @@ import {
   unique,
   foreignKey,
   check,
+  AnyPgColumn,
 } from "drizzle-orm/pg-core";
 
 // epoch-ms timestamp stored as BIGINT, surfaced as a JS number.
@@ -87,6 +88,25 @@ export const deployments = pgTable(
   ],
 );
 
+/** Nullable expand columns. U8 tighten sets NOT NULL after backfill. */
+function incidentOwnershipColumns() {
+  return {
+    organizationId: text("organization_id"),
+    incidentId: text("incident_id"),
+  };
+}
+
+function incidentOwnershipFk(
+  tableName: string,
+  t: { organizationId: AnyPgColumn; incidentId: AnyPgColumn },
+) {
+  return foreignKey({
+    name: `${tableName}_incident_ownership_fk`,
+    columns: [t.organizationId, t.incidentId],
+    foreignColumns: [incidents.organizationId, incidents.id],
+  }).onDelete("restrict");
+}
+
 /* ------------------------------------------------------------------ reports */
 export const reports = pgTable(
   "reports",
@@ -110,6 +130,7 @@ export const reports = pgTable(
     // host and onto R2. NULL = not yet migrated. Lets the image-rehost worker
     // claim only un-migrated rows (FOR UPDATE SKIP LOCKED) and be re-runnable.
     photoMigratedAt: epochMs("photo_migrated_at"),
+    ...incidentOwnershipColumns(),
   },
   (t) => [
     index("idx_reports_created_at").on(t.createdAt.desc()),
@@ -118,6 +139,7 @@ export const reports = pgTable(
     index("idx_reports_photo_pending")
       .on(t.id)
       .where(sql`photo_migrated_at IS NULL AND photo IS NOT NULL`),
+    incidentOwnershipFk("reports", t),
   ],
 );
 
@@ -129,8 +151,12 @@ export const reportConfirmations = pgTable(
       .references(() => reports.id, { onDelete: "cascade" }),
     ipHash: text("ip_hash").notNull(),
     createdAt: epochMs("created_at").notNull(),
+    ...incidentOwnershipColumns(),
   },
-  (t) => [primaryKey({ columns: [t.reportId, t.ipHash] })],
+  (t) => [
+    primaryKey({ columns: [t.reportId, t.ipHash] }),
+    incidentOwnershipFk("report_confirmations", t),
+  ],
 );
 
 /* ----------------------------------------------------------- missing_persons */
@@ -333,12 +359,14 @@ export const chatMessages = pgTable(
     // Nullable en prod: filas antiguas se rellenan con UPDATE en lib/chat.ts.
     threadBumpedAt: epochMs("thread_bumped_at"),
     createdAt: epochMs("created_at").notNull(),
+    ...incidentOwnershipColumns(),
     // Nota: prod conserva 3 columnas legado (reply_to_id/name/text) ya en
     // desuso (sustituidas por reply_to/reply_preview). Se omiten a propósito.
   },
   (t) => [
     index("idx_chat_thread_bumped").on(t.threadBumpedAt.desc()),
     index("idx_chat_reply").on(t.replyTo),
+    incidentOwnershipFk("chat_messages", t),
   ],
 );
 
@@ -778,10 +806,12 @@ export const contactMessages = pgTable(
     read: boolean("read").notNull().default(false),
     ipHash: text("ip_hash"),
     createdAt: epochMs("created_at").notNull(),
+    ...incidentOwnershipColumns(),
   },
   (t) => [
     index("contact_messages_created_at_idx").on(t.createdAt.desc()),
     index("contact_messages_unread_idx").on(t.read, t.createdAt.desc()),
+    incidentOwnershipFk("contact_messages", t),
   ],
 );
 
@@ -916,38 +946,48 @@ export const dataDeletionRequests = pgTable(
 /* ----------------------------------------------------- analytics_events */
 // Eventos de analítica. Presente en prod; sin acceso desde el código de la
 // app (legado/externo). Se documenta para que el esquema cubra prod.
-export const analyticsEvents = pgTable("analytics_events", {
-  id: text("id").primaryKey(),
-  sessionId: text("session_id").notNull(),
-  type: text("type").notNull(),
-  path: text("path").notNull(),
-  label: text("label").notNull().default(""),
-  referrer: text("referrer").notNull().default(""),
-  userAgent: text("user_agent").notNull().default(""),
-  screen: text("screen").notNull().default(""),
-  language: text("language").notNull().default(""),
-  metadata: jsonb("metadata").notNull().default({}),
-  createdAt: epochMs("created_at").notNull(),
-});
+export const analyticsEvents = pgTable(
+  "analytics_events",
+  {
+    id: text("id").primaryKey(),
+    sessionId: text("session_id").notNull(),
+    type: text("type").notNull(),
+    path: text("path").notNull(),
+    label: text("label").notNull().default(""),
+    referrer: text("referrer").notNull().default(""),
+    userAgent: text("user_agent").notNull().default(""),
+    screen: text("screen").notNull().default(""),
+    language: text("language").notNull().default(""),
+    metadata: jsonb("metadata").notNull().default({}),
+    createdAt: epochMs("created_at").notNull(),
+    ...incidentOwnershipColumns(),
+  },
+  (t) => [incidentOwnershipFk("analytics_events", t)],
+);
 
 /* ---------------------------------------------------- damage_candidates */
 // Candidatos de daño estructural. Presente en prod; legado/externo.
-export const damageCandidates = pgTable("damage_candidates", {
-  id: text("id").primaryKey(),
-  buildingId: text("building_id").notNull(),
-  name: text("name").notNull().default(""),
-  lat: doublePrecision("lat").notNull(),
-  lng: doublePrecision("lng").notNull(),
-  damageLevel: text("damage_level").notNull(),
-  confidence: doublePrecision("confidence").notNull().default(0),
-  reviewStatus: text("review_status").notNull().default("needs_review"),
-  sourceBefore: text("source_before").notNull().default(""),
-  sourceAfter: text("source_after").notNull().default(""),
-  sourceUrl: text("source_url").notNull().default(""),
-  notes: text("notes").notNull().default(""),
-  createdAt: epochMs("created_at").notNull(),
-  updatedAt: epochMs("updated_at").notNull(),
-});
+export const damageCandidates = pgTable(
+  "damage_candidates",
+  {
+    id: text("id").primaryKey(),
+    buildingId: text("building_id").notNull(),
+    name: text("name").notNull().default(""),
+    lat: doublePrecision("lat").notNull(),
+    lng: doublePrecision("lng").notNull(),
+    damageLevel: text("damage_level").notNull(),
+    confidence: doublePrecision("confidence").notNull().default(0),
+    reviewStatus: text("review_status").notNull().default("needs_review"),
+    sourceBefore: text("source_before").notNull().default(""),
+    sourceAfter: text("source_after").notNull().default(""),
+    sourceUrl: text("source_url").notNull().default(""),
+    notes: text("notes").notNull().default(""),
+    createdAt: epochMs("created_at").notNull(),
+    updatedAt: epochMs("updated_at").notNull(),
+    ...incidentOwnershipColumns(),
+  },
+  (t) => [incidentOwnershipFk("damage_candidates", t)],
+);
 
 /* ------------------------------------------------- unidentified_persons */
 // Personas no identificadas. Presente en prod; legado/externo.
