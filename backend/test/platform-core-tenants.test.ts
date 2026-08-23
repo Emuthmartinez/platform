@@ -66,6 +66,10 @@ describe("U7 platform core tenant catalog", () => {
         deploymentConfig.domains.admin,
         deploymentConfig.domains.api,
         deploymentConfig.domains.web,
+        "admin-staging.terremotocolombia.co",
+        "api-staging.terremotocolombia.co",
+        "localhost",
+        "staging.terremotocolombia.co",
       ].sort(),
     );
     for (const row of rows) {

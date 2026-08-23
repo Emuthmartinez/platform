@@ -130,6 +130,7 @@ services:
       # quien acepta una invitación), no el sitio público. Local: :3001; en prod
       # pon ADMIN_BASE_URL=https://admin.example.org en tu .env.
       APP_BASE_URL: "${ADMIN_BASE_URL:-http://localhost:3001}"
+      PINNED_DEPLOYMENT_HOSTNAME: localhost
       # SMTP: se interpola desde .env (de la raíz). Sin .env quedan vacíos y el
       # backend cae a modo dev (el invite devuelve el link; el OTP se loguea).
       # Pon los SMTP_* reales en .env para enviar correos localmente.
@@ -195,6 +196,7 @@ services:
       PORT: "3000"
       # El BFF del admin llama al backend por la red interna de Docker.
       EMERGENCY_API_URL: http://backend:8080
+      NEXT_PUBLIC_API_URL: http://localhost:8080
       # Cookie de sesión httpOnly. En local (http) NO puede ser Secure o el
       # navegador la descarta; en prod (https) va a true. Espeja el backend.
       COOKIE_SECURE: "false"

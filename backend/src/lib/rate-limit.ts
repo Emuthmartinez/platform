@@ -82,6 +82,7 @@ export interface RateLimitOptions {
 export async function checkRateLimit(
   key: string,
   { limit, windowMs = 60_000 }: RateLimitOptions,
+  globalFloodKey?: string,
 ): Promise<boolean> {
   // Bypass SOLO para tests (RATE_LIMIT_DISABLED=1): el suite golpea los mismos
   // endpoints muchas veces desde la misma "IP", lo que dispararía 429 legítimos
@@ -89,11 +90,13 @@ export async function checkRateLimit(
   // NODE_ENV, para no relajar nada por accidente.
   if (process.env.RATE_LIMIT_DISABLED === "1") return true;
 
-  // Workers production: shared, per-Cloudflare-location flood ceiling. The
-  // route-specific limit below still enforces the declared, often lower value.
+  // Shared per-colocation flood ceiling (not tenant-scoped). Route keys below
+  // still enforce the declared, often lower, tenant-scoped value.
   if (workerRateLimiter) {
     try {
-      const result = await workerRateLimiter.limit({ key });
+      const result = await workerRateLimiter.limit({
+        key: globalFloodKey ?? `flood:${key}`,
+      });
       if (!result.success) return false;
     } catch {
       // A binding outage must not take down the API. Continue to Valkey/memory.

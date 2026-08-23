@@ -6,6 +6,10 @@
   // nodejs_compat da los builtins de Node (http, crypto, buffer, stream) que
   // necesitan Express, helmet, pg y jsonwebtoken.
   "compatibility_flags": ["nodejs_compat"],
+  // KTD7: disable *.workers.dev so unknown hostnames cannot reach the API.
+  // Do not add `routes` — custom domains attach through the account API.
+  // Repeat under env.staging: named environments do not inherit this key.
+  "workers_dev": false,
   // El dominio propio (api.terremotocolombia.co) se adjunta por la API de
   // cuenta (/accounts/{id}/workers/domains), NO aqui.
   //
@@ -141,6 +145,7 @@
   "env": {
     "staging": {
       "name": "terremotocolombia-api-staging",
+      "workers_dev": false,
       "ratelimits": [
         {
           "name": "EDGE_RATE_LIMITER",

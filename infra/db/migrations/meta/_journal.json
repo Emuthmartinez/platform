@@ -162,6 +162,13 @@
       "when": 1787452600000,
       "tag": "0022_campaign_tenant",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1787452700000,
+      "tag": "0023_staging_deployments",
+      "breakpoints": true
     }
   ]
 }

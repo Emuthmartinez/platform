@@ -51,6 +51,8 @@
 	import security_headers
 
 	reverse_proxy backend:8080 {
+		header_up -X-Mallanet-Trusted-Hostname
+		header_up X-Mallanet-Trusted-Hostname {host}
 		header_up X-Real-IP {remote_host}
 		header_up X-Forwarded-For {remote_host}
 	}

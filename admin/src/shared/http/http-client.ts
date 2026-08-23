@@ -17,6 +17,7 @@
 
 import type { ApiError, Result } from "../result";
 import { err, ok } from "../result";
+import { trustedHostnameHeaders } from "../../config/trusted-hostname";
 
 export type RequestOptions = {
   headers?: Record<string, string>;
@@ -44,6 +45,7 @@ export function createHttpClient(config: HttpClientConfig): HttpClient {
     opts: RequestOptions & { body?: unknown },
   ): Promise<Result<T>> {
     const headers: Record<string, string> = {
+      ...trustedHostnameHeaders(),
       ...defaultHeaders,
       ...opts.headers,
     };

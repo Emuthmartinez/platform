@@ -22,6 +22,7 @@ import { HttpError, tooManyRequests, badRequest, unauthorized, forbidden } from 
 import { env } from "@/config/env";
 import { timingSafeEqual } from "crypto";
 import { requestId } from "@/lib/request-context";
+import { tenantRateLimitPartition } from "@/tenant/scope";
 
 /** Envuelve un handler async para que los throws lleguen al errorHandler. */
 export function asyncHandler(
@@ -56,7 +57,9 @@ export function setPublicPhotoHeaders(res: Response, contentType: string): void 
 /** Rate-limit por IP (cf-connecting-ip) + scope. Valkey-backed, fail-open. */
 export function rateLimit(opts: { scope: string; limit: number; windowMs?: number }): RequestHandler {
   return (req, _res, next) => {
-    checkRateLimit(`${opts.scope}:${hashIp(req)}`, { limit: opts.limit, windowMs: opts.windowMs })
+    const ip = hashIp(req);
+    const key = `rl:${opts.scope}:${tenantRateLimitPartition(req.tenantScope)}:${ip}`;
+    checkRateLimit(key, { limit: opts.limit, windowMs: opts.windowMs }, `flood:${ip}`)
       .then((ok) => {
         if (!ok) throw tooManyRequests("Vas muy rápido. Espera un momento e inténtalo de nuevo.");
         next();
