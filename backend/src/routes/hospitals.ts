@@ -23,7 +23,9 @@ import { z } from "zod";
 import { asyncHandler, rateLimit, requireAdmin, requireHuman, validate } from "@/middleware";
 import { requireSupplyWrite } from "@/middleware/supply-auth";
 import { jsonWithEtag } from "@/lib/http";
-import { cached, invalidate } from "@/lib/cache";
+import { cached, cacheParamDigest, invalidate } from "@/lib/cache";
+import { requireTenantScope } from "@/middleware/tenant";
+import type { TenantScope } from "@/tenant/scope";
 import { badRequest, notFound, serviceUnavailable } from "@/lib/errors";
 import * as service from "@/services/hospitals";
 import type {
@@ -120,7 +122,7 @@ hospitalsRouter.get(
     const { include, zone, state, q, limit } = req.query as unknown as z.infer<typeof listQuery>;
     const wantsStates = include === "states";
     const effLimit = Number.isFinite(limit) ? (limit as number) : 50;
-    const key = `hospitals:${state ?? ""}:${zone ?? ""}:${q ?? ""}:${effLimit}:${wantsStates ? 1 : 0}`;
+    const key = `hospitals:${state ?? ""}:${zone ?? ""}:${cacheParamDigest(q ?? "")}:${effLimit}:${wantsStates ? 1 : 0}`;
 
     const { hospitals, states } = await cached(key, 10_000, async () => {
       const [hospitals, states] = await Promise.all([
@@ -159,7 +161,7 @@ hospitalsRouter.post(
         address: body.address,
         level: body.level ?? null,
         priorityZone: body.priorityZone,
-      });
+      }, requireTenantScope(req));
       invalidate();
       res.status(201).json({ hospital });
     } catch (err) {
@@ -230,7 +232,7 @@ hospitalsRouter.post(
         status: body.status,
         notes: body.notes,
         contact: body.contact,
-      });
+      }, requireTenantScope(req));
       invalidate();
       res.status(201).json({ patient: service.toPublicPatient(patient) });
     } catch (err) {
@@ -313,6 +315,7 @@ const HOSPITAL_URGENCY_TO_PRIORITY: Record<HospitalSupplyStatus, Priority> = {
 function mirrorHospitalNeed(
   hospital: Hospital,
   need: PublicHospitalSupplyNeed,
+  scope: TenantScope,
 ): void {
   const address = [hospital.address, hospital.municipality, hospital.state]
     .filter(Boolean)
@@ -333,7 +336,7 @@ function mirrorHospitalNeed(
     description:
       need.publicNote.trim() ||
       `Necesidad de insumos del hospital ${hospital.name} (${hospital.state}).`,
-  });
+  }, scope);
 }
 
 // ===========================================================================
@@ -347,7 +350,11 @@ hospitalsRouter.post(
   asyncHandler(async (req, res) => {
     const hospital = locHospital(res);
     try {
-      const result = await service.upsertHospitalSupplyStatus(hospital.id, req.body);
+      const result = await service.upsertHospitalSupplyStatus(
+        hospital.id,
+        req.body,
+        requireTenantScope(req),
+      );
       if (!result.ok) throw badRequest(result.error);
       invalidate();
       const supply = await service.getPublicHospitalSupplySummary(hospital.id);
@@ -371,13 +378,17 @@ hospitalsRouter.post(
   asyncHandler(async (req, res) => {
     const hospital = locHospital(res);
     try {
-      const result = await service.createHospitalSupplyNeed(hospital.id, req.body);
+      const result = await service.createHospitalSupplyNeed(
+        hospital.id,
+        req.body,
+        requireTenantScope(req),
+      );
       if (!result.ok) throw badRequest(result.error);
       invalidate();
       const supply = await service.getPublicHospitalSupplySummary(hospital.id);
       res.status(201).json({ need: result.value, supply });
       // Espejo fire-and-forget a ResponseGrid (no afecta la respuesta del hospital).
-      mirrorHospitalNeed(hospital, result.value);
+      mirrorHospitalNeed(hospital, result.value, requireTenantScope(req));
     } catch (err) {
       if (err instanceof Error && "status" in err) throw err;
       const message = err instanceof Error ? err.message : "Error desconocido";
@@ -401,7 +412,12 @@ hospitalsRouter.patch(
     const hospital = locHospital(res);
     const { needId } = req.params as { needId: string };
     try {
-      const result = await service.updateHospitalSupplyNeed(hospital.id, needId, req.body);
+      const result = await service.updateHospitalSupplyNeed(
+        hospital.id,
+        needId,
+        req.body,
+        requireTenantScope(req),
+      );
       if (!result.ok) throw badRequest(result.error);
       if (!result.value) throw notFound("Necesidad no encontrada.");
       invalidate();
@@ -425,7 +441,11 @@ hospitalsRouter.post(
   asyncHandler(async (req, res) => {
     const hospital = locHospital(res);
     try {
-      const result = await service.createHospitalSupplyHelpRequest(hospital.id, req.body);
+      const result = await service.createHospitalSupplyHelpRequest(
+        hospital.id,
+        req.body,
+        requireTenantScope(req),
+      );
       if (!result.ok) throw badRequest(result.error);
       invalidate();
       res.status(201).json({ request: result.value });
@@ -456,6 +476,7 @@ hospitalsRouter.patch(
         hospital.id,
         requestId,
         req.body,
+        requireTenantScope(req),
       );
       if (!result.ok) throw badRequest(result.error);
       if (!result.value) throw notFound("Solicitud no encontrada.");

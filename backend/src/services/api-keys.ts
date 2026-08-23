@@ -17,6 +17,8 @@ import { and, desc, eq, isNull } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { CAPABILITY_KEYS } from "@/auth/capabilities";
 import { effectiveCapabilities, type AuthUser } from "@/auth/resolve";
+import { incidentOwnership } from "@/tenant/ownership";
+import type { TenantScope } from "@/tenant/scope";
 
 const { apiKeys } = schema;
 
@@ -78,6 +80,7 @@ export class ScopeError extends Error {}
 export async function createApiKey(
   user: AuthUser,
   input: CreateApiKeyInput,
+  scope: TenantScope,
 ): Promise<{ apiKey: ApiKeyDTO; rawKey: string }> {
   const scopes = [...new Set(input.scopes)];
   if (scopes.length === 0) {
@@ -114,6 +117,7 @@ export async function createApiKey(
     expiresAt: input.expiresAt ?? null,
     revokedAt: null,
     revokedBy: null,
+    ...incidentOwnership(scope),
   };
   await getDb().insert(apiKeys).values(row);
   return { apiKey: toDTO(row as typeof apiKeys.$inferSelect), rawKey: raw };

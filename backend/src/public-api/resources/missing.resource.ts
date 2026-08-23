@@ -32,6 +32,7 @@ import { badRequest, serviceUnavailable } from "@/lib/errors";
 import { documentDigits, hashDocumentDigits } from "@/services/patient-import-logic";
 import * as service from "@/services/missing";
 import { tombstonePersonRecord } from "@/services/person-records";
+import { requireTenantScope } from "@/middleware/tenant";
 import { writeAudit } from "@/auth/audit";
 
 /**
@@ -133,7 +134,7 @@ export const missingResource: CrudResource<
         service.MAX_PAGE_SIZE,
       ),
     get: (id) => service.getMissingByIdWithDocument(id),
-    create: (input) =>
+    create: (input, req) =>
       service.addMissing({
         name: input.name,
         age: input.age,
@@ -143,14 +144,15 @@ export const missingResource: CrudResource<
         contact: input.contact,
         photo: null, // las integraciones no suben base64 por este endpoint
         reportType: input.reportType,
-      }),
+      }, requireTenantScope(req)),
     update: (id, input) => {
       const { documentId, ...rest } = input;
       const documentHash =
         documentId === undefined ? undefined : toDocumentHash(documentId);
       return service.updateMissing(id, { ...rest, documentHash });
     },
-    remove: (id) => service.removeMissing(id),
+    remove: (id, req) =>
+      service.removeMissing(id, requireTenantScope(req)),
     // U10 (R21/AE3): tombstone de identidad ANTES del borrado físico —
     // insert-before-mutate, mismo orden que routes/missing.ts. Best-effort
     // (tombstonePersonRecord nunca lanza); req.user existe siempre aquí

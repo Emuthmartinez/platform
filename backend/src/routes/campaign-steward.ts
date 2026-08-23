@@ -15,6 +15,7 @@ import { MAX_REPORT_PHOTO_CHARS } from "@/services/report-types";
 import { receipts } from "@/services/campaign";
 import { receiptMessage, type ReceiptKind } from "@/services/campaign/receipt-status";
 import type { StewardIdentity } from "@/services/campaign/stewards";
+import { requireTenantScope } from "@/middleware/tenant";
 
 export const campaignStewardRouter = Router();
 
@@ -106,7 +107,7 @@ campaignStewardRouter.post(
       })),
       note: body.note,
       photo: body.photo ?? null,
-    });
+    }, requireTenantScope(req));
 
     if (!outcome.ok) {
       throw badRequest(

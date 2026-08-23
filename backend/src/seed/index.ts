@@ -13,6 +13,8 @@
  */
 import { sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
+import { colombiaTenantScope } from "@/lib/colombia-tenant";
+import { incidentOwnership } from "@/tenant/ownership";
 import { buildFixtures, DEMO_PREFIX } from "./fixtures";
 
 const LOCAL_HOSTS = new Set(["db", "localhost", "127.0.0.1"]);
@@ -73,17 +75,20 @@ async function main(): Promise<void> {
   }
 
   const data = buildFixtures(Date.now());
+  const ownership = incidentOwnership(colombiaTenantScope());
+  const withTenant = <T extends object>(rows: T[]) =>
+    rows.map((row) => ({ ...row, ...ownership }));
 
   // Orden: hospitales antes que sus hijos (FK).
-  await db.insert(schema.hospitals).values(data.hospitals).onConflictDoNothing();
-  await db.insert(schema.hospitalPatients).values(data.patients).onConflictDoNothing();
-  await db.insert(schema.hospitalSupplyStatuses).values(data.supplyStatuses).onConflictDoNothing();
-  await db.insert(schema.hospitalSupplyNeeds).values(data.supplyNeeds).onConflictDoNothing();
-  await db.insert(schema.reports).values(data.reports).onConflictDoNothing();
-  await db.insert(schema.missingPersons).values(data.missing).onConflictDoNothing();
-  await db.insert(schema.donations).values(data.donations).onConflictDoNothing();
-  await db.insert(schema.chatMessages).values(data.chat).onConflictDoNothing();
-  await db.insert(schema.volunteers).values(data.volunteers).onConflictDoNothing();
+  await db.insert(schema.hospitals).values(withTenant(data.hospitals)).onConflictDoNothing();
+  await db.insert(schema.hospitalPatients).values(withTenant(data.patients)).onConflictDoNothing();
+  await db.insert(schema.hospitalSupplyStatuses).values(withTenant(data.supplyStatuses)).onConflictDoNothing();
+  await db.insert(schema.hospitalSupplyNeeds).values(withTenant(data.supplyNeeds)).onConflictDoNothing();
+  await db.insert(schema.reports).values(withTenant(data.reports)).onConflictDoNothing();
+  await db.insert(schema.missingPersons).values(withTenant(data.missing)).onConflictDoNothing();
+  await db.insert(schema.donations).values(withTenant(data.donations)).onConflictDoNothing();
+  await db.insert(schema.chatMessages).values(withTenant(data.chat)).onConflictDoNothing();
+  await db.insert(schema.volunteers).values(withTenant(data.volunteers)).onConflictDoNothing();
 
   console.log(
     "[seed] listo:",

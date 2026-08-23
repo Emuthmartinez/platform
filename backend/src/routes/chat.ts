@@ -16,6 +16,7 @@ import { jsonWithEtag } from "@/lib/http";
 import { logDbFailure } from "@/lib/db-error";
 import { notFound, serviceUnavailable } from "@/lib/errors";
 import * as service from "@/services/chat";
+import { requireTenantScope } from "@/middleware/tenant";
 
 export const chatRouter = Router();
 
@@ -82,7 +83,7 @@ chatRouter.post(
         text: body.text,
         role,
         replyTo,
-      });
+      }, requireTenantScope(req));
       res.status(201).json({ message }); // message ya es DTO (allowlist)
     } catch (err) {
       logDbFailure("chat.create", err);

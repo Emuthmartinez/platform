@@ -13,6 +13,7 @@ import { logDbFailure } from "@/lib/db-error";
 import { captureFailedSubmission } from "@/lib/failed-submission";
 import { serviceUnavailable } from "@/lib/errors";
 import * as service from "@/services/data-deletion";
+import { requireTenantScope } from "@/middleware/tenant";
 
 export const dataDeletionRouter = Router();
 
@@ -92,7 +93,7 @@ dataDeletionRouter.post(
         email: body.email,
         details: body.details,
         ipHash: hashIp(req),
-      });
+      }, requireTenantScope(req));
       res.status(200).json({
         ok: true,
         id: result.id,
@@ -103,7 +104,7 @@ dataDeletionRouter.post(
       logDbFailure("data-deletion.create", err);
       // Red de durabilidad: el 503 sigue igual, pero el envio de la
       // persona no se tira. Ver lib/failed-submission (nunca lanza).
-      await captureFailedSubmission("data-deletion", body, err);
+      await captureFailedSubmission("data-deletion", body, err, req.tenantScope);
       throw serviceUnavailable("No se pudo guardar la solicitud.");
     }
   }),

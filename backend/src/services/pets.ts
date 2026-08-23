@@ -35,6 +35,8 @@ import {
 } from "@/lib/r2";
 import { isAllowedImageDataUrl, parseImageDataUri } from "@/lib/image";
 import { invalidate } from "@/lib/cache";
+import { incidentOwnership } from "@/tenant/ownership";
+import type { TenantScope } from "@/tenant/scope";
 
 const { missingPets } = schema;
 
@@ -403,7 +405,10 @@ export async function listPets(
   return execRows<Row>(res).map(rowToPet);
 }
 
-export async function addPet(input: CreatePetInput): Promise<PetDTO> {
+export async function addPet(
+  input: CreatePetInput,
+  scope: TenantScope,
+): Promise<PetDTO> {
   const id = crypto.randomUUID();
   const name = (input.name ?? "").trim().slice(0, MAX_NAME);
   const species = (input.species ?? "").trim().toLowerCase().slice(0, MAX_SPECIES);
@@ -457,6 +462,7 @@ export async function addPet(input: CreatePetInput): Promise<PetDTO> {
     status,
     resolutionNote,
     resolvedAt,
+    ...incidentOwnership(scope),
   });
   invalidate();
 
@@ -517,7 +523,9 @@ export async function markPetFound(
   return rows.length > 0 ? rowToPet(rows[0]!) : null;
 }
 
-export async function restorePet(id: string): Promise<boolean> {
+export async function restorePet(
+  id: string,
+): Promise<boolean> {
   const db = await getDb();
   const result = await db.execute(
     sql`UPDATE missing_pets
@@ -605,7 +613,9 @@ export async function getPetResolutionPhoto(
  * que el motor de fuentes externas no vuelva a importar lo que un admin borró, y
  * aquí no hay fuentes externas — lo borrado no puede volver.
  */
-export async function removePet(id: string): Promise<boolean> {
+export async function removePet(
+  id: string,
+): Promise<boolean> {
   const db = await getDb();
   const rows = await db
     .select({

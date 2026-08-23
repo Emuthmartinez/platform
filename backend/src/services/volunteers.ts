@@ -14,6 +14,8 @@
  */
 import { desc, eq, sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
+import { incidentOwnership } from "@/tenant/ownership";
+import type { TenantScope } from "@/tenant/scope";
 
 const { volunteers } = schema;
 
@@ -107,7 +109,7 @@ export async function createVolunteer(input: {
   ownVehicle?: boolean;
   source?: string;
   ipHash?: string | null;
-}): Promise<{ id: string; code: string }> {
+}, scope: TenantScope): Promise<{ id: string; code: string }> {
   const id = crypto.randomUUID();
   const db = await getDb();
   const now = Date.now();
@@ -134,6 +136,7 @@ export async function createVolunteer(input: {
         ipHash: input.ipHash ?? null,
         createdAt: now,
         updatedAt: now,
+        ...incidentOwnership(scope),
       });
       return { id, code };
     } catch (err) {

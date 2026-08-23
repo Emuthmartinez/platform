@@ -16,6 +16,7 @@
 import { z } from "zod";
 import { createCrudRouter, type CrudResource } from "@/public-api/crud-factory";
 import * as service from "@/services/pets";
+import { requireTenantScope } from "@/middleware/tenant";
 
 // Edad opcional en años: entero 0..120 (mismo rango que normalizeAge) o null.
 const ageSchema = z.coerce.number().int().min(0).max(120).nullable();
@@ -85,7 +86,7 @@ export const petsResource: CrudResource<
     list: async () =>
       (await service.listPets({ includeFound: true })).slice(0, service.MAX_PAGE_SIZE),
     get: (id) => service.getPetById(id),
-    create: (input) =>
+    create: (input, req) =>
       service.addPet({
         name: input.name,
         species: input.species,
@@ -99,7 +100,7 @@ export const petsResource: CrudResource<
         microchip: input.microchip,
         photo: null, // las integraciones no suben base64 por este endpoint
         reportType: input.reportType,
-      }),
+      }, requireTenantScope(req)),
     update: (id, input) => service.updatePet(id, input),
     remove: (id) => service.removePet(id),
   },

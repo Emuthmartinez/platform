@@ -8,6 +8,7 @@
 import { z } from "zod";
 import { createCrudRouter, type CrudResource } from "@/public-api/crud-factory";
 import * as service from "@/services/campaign/admin-stewards";
+import { requireTenantScope } from "@/middleware/tenant";
 
 const createSchema = z.object({
   siteId: z.string().trim().min(1, "Indica el punto.").max(64),
@@ -37,7 +38,7 @@ export const campaignStewardsResource: CrudResource<
   ops: {
     list: () => service.listStewards(),
     get: (id) => service.getSteward(id),
-    create: (input) => service.addSteward(input),
+    create: (input, req) => service.addSteward(input, requireTenantScope(req)),
     remove: (id) => service.deactivateSteward(id),
   },
 };

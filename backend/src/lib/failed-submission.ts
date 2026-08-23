@@ -35,6 +35,8 @@
  */
 import { getDb, schema } from "@/db";
 import { describeDbError } from "@/lib/db-error";
+import { incidentOwnership } from "@/tenant/ownership";
+import type { TenantScope } from "@/tenant/scope";
 
 const { failedSubmissions } = schema;
 
@@ -74,6 +76,7 @@ export async function captureFailedSubmission(
   form: string,
   payload: unknown,
   err: unknown,
+  scope?: TenantScope | null,
 ): Promise<boolean> {
   try {
     const db = await getDb();
@@ -84,6 +87,7 @@ export async function captureFailedSubmission(
       errorCode: sqlstateOf(err),
       createdAt: Date.now(),
       replayedAt: null,
+      ...(scope ? incidentOwnership(scope) : {}),
     });
     console.warn(`[failed-submission] ${form}: envio guardado para reinyectar`);
     return true;

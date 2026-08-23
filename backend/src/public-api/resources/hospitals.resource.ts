@@ -9,6 +9,7 @@ import { z } from "zod";
 import { createCrudRouter, type CrudResource } from "@/public-api/crud-factory";
 import { invalidate } from "@/lib/cache";
 import * as service from "@/services/hospitals";
+import { requireTenantScope } from "@/middleware/tenant";
 
 const facilityType = z.enum([
   "hospital",
@@ -74,7 +75,7 @@ export const hospitalsResource: CrudResource<
   ops: {
     list: () => service.listHospitals(),
     get: (id) => service.getHospital(id),
-    create: async (input) => {
+    create: async (input, req) => {
       const hospital = await service.addHospital({
         name: input.name,
         facilityType: input.facilityType,
@@ -83,7 +84,7 @@ export const hospitalsResource: CrudResource<
         address: input.address,
         level: input.level,
         priorityZone: input.priorityZone,
-      });
+      }, requireTenantScope(req));
       invalidate();
       return hospital;
     },

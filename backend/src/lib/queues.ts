@@ -16,6 +16,9 @@ import { Queue, type JobsOptions } from "bullmq";
 import IORedis from "ioredis";
 import { env } from "@/config/env";
 import { getQueueProducer } from "@/lib/job-dispatch";
+import { colombiaTenantScope } from "@/lib/colombia-tenant";
+import { tenantJobFields } from "@/tenant/ownership";
+import type { TenantScope } from "@/tenant/scope";
 
 const PREFIX = env.QUEUE_PREFIX;
 const SOURCES_SYNC_QUEUE = "sources-sync";
@@ -209,6 +212,7 @@ export const PATIENT_IMPORTS_BINDING = "IMPORTS_QUEUE";
 
 export async function enqueuePatientImport(
   data: PatientImportJobData,
+  scope: TenantScope = colombiaTenantScope(),
   opts?: JobsOptions,
 ): Promise<string> {
   // Seam de transporte, mismo criterio que lib/job-dispatch: un binding de
@@ -216,8 +220,9 @@ export async function enqueuePatientImport(
   // dispatchJob) para conservar intactas las opciones BullMQ (jobId
   // determinista, backoff, removeOn*) del camino compose.
   const producer = getQueueProducer(PATIENT_IMPORTS_BINDING);
+  const tenant = tenantJobFields(scope);
   if (producer) {
-    let payload: PatientImportJobData = data;
+    let payload: PatientImportJobData & typeof tenant = { ...data, ...tenant };
     if (data.fileBase64 !== undefined && data.contentType !== undefined) {
       // Límite de 128 KB por mensaje en Queues: el archivo NO viaja en el
       // mensaje. Se materializan las filas aquí (mismo resultado que haría el
@@ -229,13 +234,13 @@ export async function enqueuePatientImport(
         data.fileBase64,
         data.defaultHospitalId,
       );
-      payload = { importId: data.importId, mode: "process" };
+      payload = { importId: data.importId, mode: "process", ...tenant };
     }
     await producer.send(payload);
     return `pimport-${data.mode}-${data.importId}`;
   }
 
-  const job = await queue(PATIENT_IMPORTS_QUEUE).add(`${data.mode}-${data.importId}`, data, {
+  const job = await queue(PATIENT_IMPORTS_QUEUE).add(`${data.mode}-${data.importId}`, { ...data, ...tenant }, {
     jobId: `pimport-${data.mode}-${data.importId}`,
     attempts: 3,
     backoff: { type: "exponential", delay: 10_000 },

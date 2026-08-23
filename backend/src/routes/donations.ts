@@ -16,6 +16,7 @@ import { hashIp } from "@/lib/client-ip";
 import { logDbFailure } from "@/lib/db-error";
 import { serviceUnavailable } from "@/lib/errors";
 import * as service from "@/services/donations";
+import { requireTenantScope } from "@/middleware/tenant";
 
 export const donationsRouter = Router();
 
@@ -138,7 +139,7 @@ donationsRouter.post(
         amountCents: body.amountCents,
         ipHash: hashIp(req),
         userAgent: req.headers["user-agent"] ?? null,
-      });
+      }, requireTenantScope(req));
       res.status(200).json({
         id: donation.id,
         paypalUrl: service.PAYPAL_DONATION_URL,

@@ -18,6 +18,7 @@ import {
 import * as service from "@/services/patients";
 import { tombstonePersonRecord } from "@/services/person-records";
 import { writeAudit } from "@/auth/audit";
+import { requireTenantScope } from "@/middleware/tenant";
 
 /**
  * Cédula/documento → HMAC, MISMA normalización y clave que la importación en
@@ -125,12 +126,15 @@ export const patientsResource: CrudResource<
   ops: {
     list: () => service.listPatients(),
     get: (id) => service.getPatientById(id),
-    create: async (input) => {
+    create: async (input, req) => {
       const { documentId, ...rest } = input;
       const documentHash =
         documentId === undefined ? undefined : toDocumentHash(documentId);
       try {
-        const patient = await service.createPatient({ ...rest, documentHash });
+        const patient = await service.createPatient(
+          { ...rest, documentHash },
+          requireTenantScope(req),
+        );
         invalidate();
         return patient;
       } catch (err) {

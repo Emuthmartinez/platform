@@ -76,6 +76,25 @@ function unsupportedOrMalformed(version: number | undefined): QueueDecodeFailure
   return { ok: false, reason: "malformed" };
 }
 
+function legacyTenantIds(record: Record<string, unknown>): {
+  organizationId: string;
+  incidentId: string;
+} {
+  const organizationId =
+    typeof record.organizationId === "string" && record.organizationId.trim()
+      ? record.organizationId.trim()
+      : "";
+  const incidentId =
+    typeof record.incidentId === "string" && record.incidentId.trim()
+      ? record.incidentId.trim()
+      : "";
+  if (organizationId && incidentId) return { organizationId, incidentId };
+  return {
+    organizationId: COLOMBIA_ORGANIZATION_ID,
+    incidentId: COLOMBIA_INCIDENT_ID,
+  };
+}
+
 function decodeEnvelope(
   body: Record<string, unknown>,
   expectedFamily: QueueJobFamily,
@@ -116,12 +135,13 @@ export function decodeNeedsJob(body: unknown): QueueDecodeResult<NeedPublication
   const parsed = needsJobV1Schema.safeParse(record);
   if (!parsed.success) return { ok: false, reason: "malformed" };
   logLegacyDecode("needs");
+  const tenant = legacyTenantIds(record);
   return {
     ok: true,
     legacy: true,
     schemaVersion: 1,
-    organizationId: COLOMBIA_ORGANIZATION_ID,
-    incidentId: COLOMBIA_INCIDENT_ID,
+    organizationId: tenant.organizationId,
+    incidentId: tenant.incidentId,
     idempotencyKey: parsed.data.jobId ?? null,
     producerBuildSha: null,
     createdAt: null,
@@ -167,12 +187,13 @@ export function decodeImportJob(body: unknown): QueueDecodeResult<ImportJobBody>
   const parsed = importJobV1Schema.safeParse(record);
   if (!parsed.success) return { ok: false, reason: "malformed" };
   logLegacyDecode("imports");
+  const tenant = legacyTenantIds(record);
   return {
     ok: true,
     legacy: true,
     schemaVersion: 1,
-    organizationId: COLOMBIA_ORGANIZATION_ID,
-    incidentId: COLOMBIA_INCIDENT_ID,
+    organizationId: tenant.organizationId,
+    incidentId: tenant.incidentId,
     idempotencyKey: parsed.data.importId,
     producerBuildSha: null,
     createdAt: null,
@@ -214,12 +235,13 @@ export function decodeMatcherJob(body: unknown): QueueDecodeResult<MatcherJobBod
   const parsed = matcherJobV1Schema.safeParse(record);
   if (!parsed.success) return { ok: false, reason: "malformed" };
   logLegacyDecode("matcher");
+  const tenant = legacyTenantIds(record);
   return {
     ok: true,
     legacy: true,
     schemaVersion: 1,
-    organizationId: COLOMBIA_ORGANIZATION_ID,
-    incidentId: COLOMBIA_INCIDENT_ID,
+    organizationId: tenant.organizationId,
+    incidentId: tenant.incidentId,
     idempotencyKey: parsed.data.prn,
     producerBuildSha: null,
     createdAt: null,

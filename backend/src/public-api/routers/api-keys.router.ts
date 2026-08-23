@@ -22,6 +22,7 @@ import { requireCapability } from "@/middleware/auth";
 import { writeAudit } from "@/auth/audit";
 import { badRequest, forbidden, notFound } from "@/lib/errors";
 import * as service from "@/services/api-keys";
+import { requireTenantScope } from "@/middleware/tenant";
 
 export const apiKeysRouter = Router();
 
@@ -59,7 +60,7 @@ apiKeysRouter.post(
         name: body.name,
         scopes: body.scopes,
         expiresAt: body.expiresAt ?? null,
-      });
+      }, requireTenantScope(req));
       await writeAudit(req, {
         action: "apikey.create",
         targetType: "api_key",

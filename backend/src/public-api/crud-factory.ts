@@ -36,6 +36,7 @@ import { requireCapability } from "@/middleware/auth";
 import { writeAudit } from "@/auth/audit";
 import { notFound } from "@/lib/errors";
 import { isKnownCapability } from "@/auth/capabilities";
+import { invalidate } from "@/lib/cache";
 
 // Habilita .openapi() en zod (necesario para que el generador lea los esquemas).
 extendZodWithOpenApi(z);
@@ -43,15 +44,15 @@ extendZodWithOpenApi(z);
 /** Una operación CRUD respaldada por una función del service. */
 export interface CrudOps<TList, TItem, TCreate, TUpdate> {
   /** GET /  — lista (DTOs allowlist). Sin esto, no se monta la ruta de listado. */
-  list?: () => Promise<TList[]>;
+  list?: (req: Request) => Promise<TList[]>;
   /** GET /:id — uno por id. null/undefined = 404. */
   get?: (id: string) => Promise<TItem | null>;
   /** POST / — crea. Devuelve el DTO creado. */
-  create?: (input: TCreate) => Promise<TItem>;
+  create?: (input: TCreate, req: Request) => Promise<TItem>;
   /** PATCH /:id — actualiza campos permitidos. null = 404. */
-  update?: (id: string, input: TUpdate) => Promise<TItem | null>;
+  update?: (id: string, input: TUpdate, req: Request) => Promise<TItem | null>;
   /** DELETE /:id — elimina. false = 404. */
-  remove?: (id: string) => Promise<boolean>;
+  remove?: (id: string, req: Request) => Promise<boolean>;
   /**
    * Hook OPCIONAL invocado justo ANTES de `remove` (U10) — `req` en scope
    * para poder auditar dentro del hook. Sin esto, ningún recurso cambia de
@@ -126,8 +127,8 @@ export function createCrudRouter<TList, TItem, TCreate, TUpdate>(
       "/",
       rateLimit({ scope: `public:${cap}:list`, limit: limits.list }),
       requireCapability(`${cap}:read`),
-      asyncHandler(async (_req, res) => {
-        res.json({ items: await ops.list!() });
+      asyncHandler(async (req, res) => {
+        res.json({ items: await ops.list!(req) });
       }),
     );
   }
@@ -139,7 +140,8 @@ export function createCrudRouter<TList, TItem, TCreate, TUpdate>(
       requireCapability(`${cap}:create`),
       validate({ body: schemas!.create }),
       asyncHandler(async (req, res) => {
-        const item = await ops.create!(req.body as TCreate);
+        const item = await ops.create!(req.body as TCreate, req);
+        invalidate();
         await auditMutation(req, `${auditType}.create`, auditType, itemId(item));
         res.status(201).json({ item });
       }),
@@ -168,8 +170,9 @@ export function createCrudRouter<TList, TItem, TCreate, TUpdate>(
       validate({ params: idParams, body: schemas!.update }),
       asyncHandler(async (req, res) => {
         const id = (req.params as { id: string }).id;
-        const item = await ops.update!(id, req.body as TUpdate);
+        const item = await ops.update!(id, req.body as TUpdate, req);
         if (item == null) throw notFound("No encontrado.");
+        invalidate();
         await auditMutation(req, `${auditType}.edit`, auditType, id, {
           fields: Object.keys(req.body as object),
         });
@@ -187,8 +190,9 @@ export function createCrudRouter<TList, TItem, TCreate, TUpdate>(
       asyncHandler(async (req, res) => {
         const id = (req.params as { id: string }).id;
         if (ops.onBeforeRemove) await ops.onBeforeRemove(req, id);
-        const ok = await ops.remove!(id);
+        const ok = await ops.remove!(id, req);
         if (!ok) throw notFound("No encontrado.");
+        invalidate();
         await auditMutation(req, `${auditType}.delete`, auditType, id);
         res.json({ ok: true });
       }),

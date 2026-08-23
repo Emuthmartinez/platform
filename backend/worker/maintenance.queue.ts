@@ -14,6 +14,7 @@
  */
 import { Queue, Worker, type Processor, type JobsOptions } from "bullmq";
 import { getRedis } from "./redis";
+import { colombiaTenantScope } from "../src/lib/colombia-tenant";
 
 const PREFIX = process.env.QUEUE_PREFIX || "mapa";
 export const MAINTENANCE_QUEUE = "maintenance";
@@ -141,7 +142,7 @@ const processor: Processor = async (job) => {
   const data = job.data as MaintenanceJobData;
   if (data.kind === "geocode") {
     const { runGeocode } = await import("./sync/geocode");
-    return runGeocode({ maxLocations: data.maxLocations });
+    return runGeocode({ maxLocations: data.maxLocations, scope: colombiaTenantScope() });
   }
   if (data.kind === "duplicates") {
     const { buildDuplicateReport } = await import("./sync/dedup");

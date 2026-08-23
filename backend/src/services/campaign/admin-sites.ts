@@ -6,6 +6,8 @@
 import { desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { campaignSites, DEFAULT_CAMPAIGN } from "@/db/campaign-schema";
+import { incidentOwnership } from "@/tenant/ownership";
+import type { TenantScope } from "@/tenant/scope";
 
 export interface SiteDTO {
   id: string;
@@ -79,7 +81,7 @@ export async function getSite(id: string): Promise<SiteDTO | null> {
   return rows[0] ? toDTO(rows[0]) : null;
 }
 
-export async function createSite(input: SiteInput): Promise<SiteDTO> {
+export async function createSite(input: SiteInput, scope: TenantScope): Promise<SiteDTO> {
   const db = await getDb();
   const id = crypto.randomUUID();
   const now = Date.now();
@@ -98,6 +100,7 @@ export async function createSite(input: SiteInput): Promise<SiteDTO> {
     lng: input.lng ?? null,
     createdAt: now,
     updatedAt: now,
+    ...incidentOwnership(scope),
   });
   const created = await getSite(id);
   if (!created) throw new Error("No se pudo leer el punto recién creado.");

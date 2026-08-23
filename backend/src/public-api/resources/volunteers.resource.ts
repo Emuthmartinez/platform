@@ -13,6 +13,7 @@ import { z } from "zod";
 import { createCrudRouter, type CrudResource } from "@/public-api/crud-factory";
 import { VOLUNTEER_OFFER_TYPES } from "@/routes/volunteers";
 import * as service from "@/services/volunteers";
+import { requireTenantScope } from "@/middleware/tenant";
 
 const statusEnum = z.enum(["pending", "contacted", "active", "declined"]);
 
@@ -75,9 +76,9 @@ export const volunteersResource: CrudResource<
   ops: {
     list: () => service.listVolunteers(),
     get: (id) => service.getVolunteerById(id),
-    create: async (input) => {
+    create: async (input, req) => {
       // createVolunteer solo devuelve {id}; devolvemos el DTO completo.
-      const { id } = await service.createVolunteer(input);
+      const { id } = await service.createVolunteer(input, requireTenantScope(req));
       const dto = await service.getVolunteerById(id);
       if (!dto) throw new Error("volunteer: el registro recién creado no se encontró");
       return dto;

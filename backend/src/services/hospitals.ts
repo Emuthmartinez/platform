@@ -12,6 +12,8 @@
  */
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
+import { incidentOwnership } from "@/tenant/ownership";
+import type { TenantScope } from "@/tenant/scope";
 
 const {
   hospitals,
@@ -575,7 +577,10 @@ export interface NewHospital {
   priorityZone?: HospitalPriorityZone;
 }
 
-export async function addHospital(input: NewHospital): Promise<Hospital> {
+export async function addHospital(
+  input: NewHospital,
+  scope: TenantScope,
+): Promise<Hospital> {
   const db = await getDb();
   const name = (input.name ?? "").trim();
   if (!name) throw new Error("El nombre es obligatorio.");
@@ -608,6 +613,7 @@ export async function addHospital(input: NewHospital): Promise<Hospital> {
     priorityZone: hospital.priorityZone,
     isPriority: hospital.isPriority,
     createdAt: hospital.createdAt,
+    ...incidentOwnership(scope),
   });
   return hospital;
 }
@@ -719,6 +725,7 @@ export interface NewHospitalPatient {
 export async function addPatient(
   hospitalId: string,
   input: NewHospitalPatient,
+  scope: TenantScope,
 ): Promise<HospitalPatient> {
   const db = await getDb();
   const name = (input.name ?? "").trim();
@@ -756,6 +763,7 @@ export async function addPatient(
     contact: patient.contact,
     admittedAt: patient.admittedAt,
     updatedAt: patient.updatedAt,
+    ...incidentOwnership(scope),
   });
   return patient;
 }
@@ -1194,6 +1202,7 @@ async function logSupplyEvent(input: {
   actor: string;
   source: string;
   payload: Record<string, unknown>;
+  scope: TenantScope;
 }): Promise<void> {
   const db = await getDb();
   await db.insert(hospitalSupplyEvents).values({
@@ -1207,12 +1216,14 @@ async function logSupplyEvent(input: {
     source: input.source,
     payload: input.payload,
     createdAt: Date.now(),
+    ...incidentOwnership(input.scope),
   });
 }
 
 export async function upsertHospitalSupplyStatus(
   hospitalId: string,
   input: SupplyStatusUpdateInput,
+  scope: TenantScope,
 ): Promise<Validation<RestrictedHospitalSupplyStatus>> {
   const parsed = validateSupplyStatusUpdate(input);
   if (!parsed.ok) return parsed;
@@ -1265,6 +1276,7 @@ export async function upsertHospitalSupplyStatus(
       updatedBy: value.updatedBy,
       source: value.source,
       createdAt: previous?.createdAt ?? now,
+      ...incidentOwnership(scope),
     })
     .onConflictDoUpdate({
       target: [hospitalSupplyStatuses.hospitalId, hospitalSupplyStatuses.category],
@@ -1290,6 +1302,7 @@ export async function upsertHospitalSupplyStatus(
     actor: value.updatedBy,
     source: value.source,
     payload: { status: nextStatus },
+    scope,
   });
   return { ok: true, value: rowToRestrictedStatus(rows[0]!) };
 }
@@ -1297,6 +1310,7 @@ export async function upsertHospitalSupplyStatus(
 export async function createHospitalSupplyNeed(
   hospitalId: string,
   input: SupplyNeedInput,
+  scope: TenantScope,
 ): Promise<Validation<RestrictedHospitalSupplyNeed>> {
   const parsed = validateSupplyNeedInput(input);
   if (!parsed.ok) return parsed;
@@ -1322,6 +1336,7 @@ export async function createHospitalSupplyNeed(
       source: value.source,
       createdAt: now,
       updatedAt: now,
+      ...incidentOwnership(scope),
     })
     .returning();
   await logSupplyEvent({
@@ -1333,6 +1348,7 @@ export async function createHospitalSupplyNeed(
     actor: value.updatedBy,
     source: value.source,
     payload: { itemType: value.itemType, urgency: value.urgency },
+    scope,
   });
   return { ok: true, value: rowToRestrictedNeed(rows[0]!) };
 }
@@ -1341,6 +1357,7 @@ export async function updateHospitalSupplyNeed(
   hospitalId: string,
   needId: string,
   input: SupplyNeedPatchInput,
+  scope: TenantScope,
 ): Promise<Validation<RestrictedHospitalSupplyNeed | null>> {
   const parsed = validateSupplyNeedPatch(input);
   if (!parsed.ok) return parsed;
@@ -1387,6 +1404,7 @@ export async function updateHospitalSupplyNeed(
     actor: value.updatedBy,
     source: value.source,
     payload: { status: rows[0]?.status },
+    scope,
   });
   return { ok: true, value: rowToRestrictedNeed(rows[0]!) };
 }
@@ -1394,6 +1412,7 @@ export async function updateHospitalSupplyNeed(
 export async function createHospitalSupplyHelpRequest(
   hospitalId: string,
   input: SupplyHelpRequestInput,
+  scope: TenantScope,
 ): Promise<Validation<HospitalSupplyHelpRequest>> {
   const parsed = validateSupplyHelpRequest(input);
   if (!parsed.ok) return parsed;
@@ -1415,6 +1434,7 @@ export async function createHospitalSupplyHelpRequest(
       restrictedNote: value.restrictedNote,
       createdAt: now,
       updatedAt: now,
+      ...incidentOwnership(scope),
     })
     .returning();
   await logSupplyEvent({
@@ -1426,6 +1446,7 @@ export async function createHospitalSupplyHelpRequest(
     actor: value.requestedBy,
     source: value.source,
     payload: { urgency: value.urgency },
+    scope,
   });
   return { ok: true, value: rowToHelpRequest(rows[0]!) };
 }
@@ -1434,6 +1455,7 @@ export async function updateHospitalSupplyHelpRequest(
   hospitalId: string,
   requestId: string,
   input: SupplyHelpPatchInput,
+  scope: TenantScope,
 ): Promise<Validation<HospitalSupplyHelpRequest | null>> {
   const parsed = validateSupplyHelpPatch(input);
   if (!parsed.ok) return parsed;
@@ -1478,6 +1500,7 @@ export async function updateHospitalSupplyHelpRequest(
     actor: value.requestedBy,
     source: value.source,
     payload: { status: rows[0]?.status },
+    scope,
   });
   return { ok: true, value: rowToHelpRequest(rows[0]!) };
 }

@@ -21,6 +21,8 @@ import { getDb, schema } from "@/db";
 import { env } from "@/config/env";
 import { serviceUnavailable, badRequest } from "@/lib/errors";
 import * as firewall from "@/lib/hetzner-firewall";
+import { incidentOwnership } from "@/tenant/ownership";
+import type { TenantScope } from "@/tenant/scope";
 
 const { hubCredentials } = schema;
 
@@ -179,6 +181,7 @@ export interface IssuedCredential {
 export async function issueCredential(
   createdBy: string,
   input: IssueInput,
+  scope: TenantScope,
 ): Promise<IssuedCredential> {
   assertConfigured();
   const role = newRole();
@@ -229,6 +232,7 @@ export async function issueCredential(
     lastRotatedAt: null,
     revokedAt: null,
     revokedBy: null,
+    ...incidentOwnership(scope),
   };
   try {
     await getDb().insert(hubCredentials).values(row);

@@ -154,4 +154,6 @@ export interface ImportHeaderRow {
 	processedAt: number | null;
 	appliedAt: number | null;
 	updatedAt: number;
+	organizationId?: string | null;
+	incidentId?: string | null;
 }

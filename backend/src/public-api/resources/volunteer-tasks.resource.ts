@@ -8,6 +8,7 @@
 import { z } from "zod";
 import { createCrudRouter, type CrudResource } from "@/public-api/crud-factory";
 import * as service from "@/services/volunteer-tasks";
+import { requireTenantScope } from "@/middleware/tenant";
 
 const kindEnum = z.enum(["digital", "terreno"]);
 const statusEnum = z.enum(["open", "assigned", "done", "cancelled"]);
@@ -65,8 +66,8 @@ export const volunteerTasksResource: CrudResource<
   ops: {
     list: () => service.listTasks(),
     get: (id) => service.getTaskById(id),
-    create: async (input) => {
-      const { id } = await service.createTask(input);
+    create: async (input, req) => {
+      const { id } = await service.createTask(input, requireTenantScope(req));
       const dto = await service.getTaskById(id);
       if (!dto) throw new Error("volunteer-task: la tarea recién creada no se encontró");
       return dto;

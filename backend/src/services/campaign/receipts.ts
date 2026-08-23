@@ -16,6 +16,8 @@ import {
   type MaterialLine,
 } from "@/db/campaign-schema";
 import { persistPhotoDataUrl } from "@/lib/r2";
+import { incidentOwnership } from "@/tenant/ownership";
+import type { TenantScope } from "@/tenant/scope";
 import { receiptStatus } from "./receipt-status";
 
 export interface ReceiptInput {
@@ -31,7 +33,7 @@ export type ReceiptOutcome =
   | { ok: true; receiptId: string; pledgeCode: string | null; status: string }
   | { ok: false; reason: "unknown_code" | "already_confirmed" };
 
-export async function registerReceipt(input: ReceiptInput): Promise<ReceiptOutcome> {
+export async function registerReceipt(input: ReceiptInput, scope: TenantScope): Promise<ReceiptOutcome> {
   const db = await getDb();
   const now = Date.now();
   const receiptId = crypto.randomUUID();
@@ -50,6 +52,7 @@ export async function registerReceipt(input: ReceiptInput): Promise<ReceiptOutco
       photo,
       receivedAt: now,
       createdAt: now,
+      ...incidentOwnership(scope),
     });
     return { ok: true, receiptId, pledgeCode: null, status: "walk_in" };
   }
@@ -82,6 +85,7 @@ export async function registerReceipt(input: ReceiptInput): Promise<ReceiptOutco
       photo,
       receivedAt: now,
       createdAt: now,
+      ...incidentOwnership(scope),
     });
   } catch (err) {
     await db

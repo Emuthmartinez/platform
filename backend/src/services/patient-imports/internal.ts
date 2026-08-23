@@ -2,11 +2,14 @@ import { createHash } from "node:crypto";
 import { and, eq, inArray } from "drizzle-orm";
 import { env } from "@/config/env";
 import { getDb, schema } from "@/db";
+import { colombiaTenantScope } from "@/lib/colombia-tenant";
 import type {
 	DedupCandidate,
 	RawPatientRow,
 } from "@/services/patient-import-logic";
 import { hashDocumentDigits } from "@/services/patient-import-logic";
+import { tenantScopeFromIds } from "@/tenant/ownership";
+import type { TenantScope } from "@/tenant/scope";
 import {
 	type CreateImportResult,
 	type ImportHeaderRow,
@@ -55,6 +58,17 @@ export function toCreateImportResult(
 	reusedExisting: boolean,
 ): CreateImportResult {
 	return { ...toSummary(h), reusedExisting };
+}
+
+export function tenantScopeFromImportHeader(
+	h: Pick<ImportHeaderRow, "organizationId" | "incidentId">,
+): TenantScope {
+	const organizationId = h.organizationId?.trim();
+	const incidentId = h.incidentId?.trim();
+	if (organizationId && incidentId) {
+		return tenantScopeFromIds({ organizationId, incidentId });
+	}
+	return colombiaTenantScope();
 }
 
 export function isFailedStage(

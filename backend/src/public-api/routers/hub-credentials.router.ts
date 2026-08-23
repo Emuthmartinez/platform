@@ -23,6 +23,7 @@ import { writeAudit } from "@/auth/audit";
 import { forbidden, notFound } from "@/lib/errors";
 import { clientIp } from "@/lib/client-ip";
 import * as service from "@/services/hub-credentials";
+import { requireTenantScope } from "@/middleware/tenant";
 
 export const hubCredentialsRouter = Router();
 
@@ -69,7 +70,7 @@ hubCredentialsRouter.post(
     const issued = await service.issueCredential(req.user!.id, {
       consumerName: body.consumerName,
       ip: body.ip,
-    });
+    }, requireTenantScope(req));
     await writeAudit(req, {
       action: "hubcred.issue",
       targetType: "hub_credential",

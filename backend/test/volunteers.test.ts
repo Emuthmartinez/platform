@@ -82,8 +82,13 @@ let app: express.Express;
 beforeAll(async () => {
   const { volunteersRouter } = await import("@/routes/volunteers");
   const { errorHandler } = await import("@/middleware");
+  const { colombiaTenantScope } = await import("@/lib/colombia-tenant");
   app = express();
   app.use(express.json());
+  app.use((req, _res, next) => {
+    req.tenantScope = colombiaTenantScope();
+    next();
+  });
   app.use("/api/volunteers", volunteersRouter);
   app.use(errorHandler);
 });

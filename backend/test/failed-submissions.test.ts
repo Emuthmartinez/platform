@@ -10,6 +10,7 @@ import { randomUUID } from "crypto";
 import { eq, sql } from "drizzle-orm";
 import { beforeAll, describe, expect, it } from "vitest";
 import "./helpers";
+import { colombiaTenantScope } from "@/lib/colombia-tenant";
 
 let db: typeof import("@/db");
 let svc: typeof import("@/services/failed-submissions");
@@ -139,7 +140,7 @@ describe("updateDeletionRequestStatus — supresión Ley 1581", () => {
       email,
       details: "Solicitud sintética de test",
       ipHash: "demo-hash",
-    });
+    }, colombiaTenantScope());
 
     const result = await deletionSvc.updateDeletionRequestStatus(req.id, "resolved");
     expect(result).not.toBeNull();
@@ -157,7 +158,7 @@ describe("updateDeletionRequestStatus — supresión Ley 1581", () => {
       name: "DEMO Solicitante",
       email,
       ipHash: "demo-hash",
-    });
+    }, colombiaTenantScope());
     const result = await deletionSvc.updateDeletionRequestStatus(req.id, "rejected");
     expect(result!.purgedFailedSubmissions).toBe(0);
     expect(await existsFailed(failedId)).toBe(true);

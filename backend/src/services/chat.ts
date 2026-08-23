@@ -10,6 +10,7 @@
  */
 import { asc, desc, eq, inArray, or, sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
+import type { TenantScope } from "@/tenant/scope";
 
 const { chatMessages } = schema;
 
@@ -144,7 +145,10 @@ export interface AddMessageInput {
 }
 
 /** Porta addMessage de lib/chat.ts (rama con DB): insert + bump de hilo atómico. */
-export async function addMessage(input: AddMessageInput): Promise<ChatDTO> {
+export async function addMessage(
+  input: AddMessageInput,
+  scope: TenantScope,
+): Promise<ChatDTO> {
   const db = await getDb();
   const now = Date.now();
   const role = normalizeRole(input.role);
@@ -182,11 +186,13 @@ export async function addMessage(input: AddMessageInput): Promise<ChatDTO> {
     WITH ins AS (
       INSERT INTO ${chatMessages}
         (id, name, role, text, reply_to, reply_preview,
-         thread_root_id, thread_bumped_at, created_at)
+         thread_root_id, thread_bumped_at, created_at,
+         organization_id, incident_id)
       VALUES (
         ${id}, ${name}, ${role}, ${text},
         ${replyToId}, ${replyPreview},
-        ${threadRootId}, ${now}, ${now}
+        ${threadRootId}, ${now}, ${now},
+        ${scope.organizationId}, ${scope.incidentId}
       )
     )
     UPDATE ${chatMessages}

@@ -19,6 +19,9 @@ import type {
 	ImportSummaryDTO,
 	PatientImportFailedStage,
 } from "./types";
+import { incidentOwnership } from "@/tenant/ownership";
+import { colombiaTenantScope } from "@/lib/colombia-tenant";
+import type { TenantScope } from "@/tenant/scope";
 
 const { patientImports, patientImportRows } = schema;
 
@@ -46,6 +49,7 @@ async function findByIdempotencyKey(
 export async function createImport(
 	input: CreateImportInput,
 	actorId: string | null,
+	scope: TenantScope = colombiaTenantScope(),
 ): Promise<CreateImportResult> {
 	const db = getDb();
 	const now = Date.now();
@@ -79,6 +83,7 @@ export async function createImport(
 			createdBy: actorId,
 			createdAt: now,
 			updatedAt: now,
+			...incidentOwnership(scope),
 		});
 
 		// Lote con hospital destino: el id elegido pisa el de cada fila.
@@ -93,6 +98,7 @@ export async function createImport(
 					rawData: raw as Record<string, unknown>,
 					createdAt: now,
 					updatedAt: now,
+					...incidentOwnership(scope),
 				})),
 			);
 		}

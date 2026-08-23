@@ -52,8 +52,13 @@ let app: express.Express;
 beforeAll(async () => {
   const { psychologyHelpRouter } = await import("@/routes/psychology-help");
   const { errorHandler } = await import("@/middleware");
+  const { colombiaTenantScope } = await import("@/lib/colombia-tenant");
   app = express();
   app.use(express.json());
+  app.use((req, _res, next) => {
+    req.tenantScope = colombiaTenantScope();
+    next();
+  });
   app.use("/api/stats/psychology-help", psychologyHelpRouter);
   app.use(errorHandler);
 });
@@ -82,7 +87,9 @@ describe("SQL crudo de los increments (regresión 42703)", () => {
     ).sql;
     expect(rendered).not.toContain('"click_counter_dedup".');
     expect(rendered).not.toContain('"click_counters".');
-    expect(rendered).toContain("INSERT INTO click_counter_dedup (counter_key, ip_hash, created_at)");
+    expect(rendered).toContain(
+      "INSERT INTO click_counter_dedup (counter_key, ip_hash, created_at, organization_id, incident_id)",
+    );
   });
 
   it("source:form: UPDATE...RETURNING sin calificación de tabla", async () => {

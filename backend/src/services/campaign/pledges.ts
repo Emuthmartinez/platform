@@ -13,6 +13,8 @@ import { getDb } from "@/db";
 import { materialPledges, type MaterialLine } from "@/db/campaign-schema";
 import { materialLabel, materialUnit } from "@/lib/campaign-materials";
 import { persistPhotoDataUrl } from "@/lib/r2";
+import { incidentOwnership } from "@/tenant/ownership";
+import type { TenantScope } from "@/tenant/scope";
 import { normalizePledgeCode, PLEDGE_CODE_LENGTH, randomPledgeCode } from "./pledge-code";
 
 const CODE_MAX_ATTEMPTS = 5;
@@ -59,7 +61,10 @@ async function generateUniqueCode(): Promise<string> {
   throw new Error("campaign: no se pudo generar un código único de compromiso");
 }
 
-export async function createPledge(input: PledgeInput): Promise<{ id: string; code: string }> {
+export async function createPledge(
+  input: PledgeInput,
+  scope: TenantScope,
+): Promise<{ id: string; code: string }> {
   const db = await getDb();
   const id = crypto.randomUUID();
   const code = await generateUniqueCode();
@@ -86,6 +91,7 @@ export async function createPledge(input: PledgeInput): Promise<{ id: string; co
     ipHash: input.ipHash,
     createdAt: now,
     updatedAt: now,
+    ...incidentOwnership(scope),
   });
   return { id, code };
 }

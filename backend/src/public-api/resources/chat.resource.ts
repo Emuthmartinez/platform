@@ -10,6 +10,7 @@
  */
 import { z } from "zod";
 import { createCrudRouter, type CrudResource } from "@/public-api/crud-factory";
+import { requireTenantScope } from "@/middleware/tenant";
 import * as service from "@/services/chat";
 
 const chatRole = z.enum([
@@ -54,13 +55,13 @@ export const chatResource: CrudResource<
   ops: {
     list: () => service.listMessages(),
     get: (id) => service.getMessageById(id),
-    create: (input) =>
+    create: (input, req) =>
       service.addMessage({
         name: input.name,
         text: input.text,
         role: input.role,
         replyTo: input.replyTo ?? null,
-      }),
+      }, requireTenantScope(req)),
     remove: (id) => service.removeMessage(id),
     // update OMITIDO: los mensajes son inmutables.
   },
