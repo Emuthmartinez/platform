@@ -845,11 +845,13 @@ export const volunteers = pgTable(
     ipHash: text("ip_hash"),
     createdAt: epochMs("created_at").notNull(),
     updatedAt: epochMs("updated_at"),
+    ...incidentOwnershipColumns(),
   },
   (t) => [
     index("volunteers_created_at_idx").on(t.createdAt.desc()),
     index("volunteers_status_idx").on(t.status, t.createdAt.desc()),
     uniqueIndex("volunteers_code_unique").on(t.code),
+    incidentOwnershipFk("volunteers", t),
   ],
 );
 
@@ -868,10 +870,12 @@ export const volunteerCheckins = pgTable(
     note: text("note").notNull().default(""),
     photo: text("photo"),
     createdAt: epochMs("created_at").notNull(),
+    ...incidentOwnershipColumns(),
   },
   (t) => [
     index("volunteer_checkins_volunteer_idx").on(t.volunteerId, t.createdAt.desc()),
     index("volunteer_checkins_created_at_idx").on(t.createdAt.desc()),
+    incidentOwnershipFk("volunteer_checkins", t),
   ],
 );
 
@@ -897,8 +901,12 @@ export const volunteerTasks = pgTable(
     status: text("status").notNull().default("open"), // open | assigned | done | cancelled
     createdAt: epochMs("created_at").notNull(),
     updatedAt: epochMs("updated_at"),
+    ...incidentOwnershipColumns(),
   },
-  (t) => [index("volunteer_tasks_status_idx").on(t.status, t.createdAt.desc())],
+  (t) => [
+    index("volunteer_tasks_status_idx").on(t.status, t.createdAt.desc()),
+    incidentOwnershipFk("volunteer_tasks", t),
+  ],
 );
 
 /* ----------------------------------------------------- volunteer_assignments */
@@ -914,10 +922,12 @@ export const volunteerAssignments = pgTable(
     status: text("status").notNull().default("offered"), // offered | accepted | done | declined
     createdAt: epochMs("created_at").notNull(),
     updatedAt: epochMs("updated_at"),
+    ...incidentOwnershipColumns(),
   },
   (t) => [
     index("volunteer_assignments_task_idx").on(t.taskId),
     index("volunteer_assignments_volunteer_idx").on(t.volunteerId),
+    incidentOwnershipFk("volunteer_assignments", t),
   ],
 );
 
