@@ -23,7 +23,15 @@ Do not add a Drizzle table without a classification row in the same change.
 
 U7 expand order (one migration commit per group):
 
-1. Core catalog: `organizations`, `incidents`, `deployments`
-2. Later groups add nullable `organization_id` / `incident_id` plus the
-   composite FK to `incidents(organization_id, id)`. Campaign tables stay
-   in handwritten SQL because they are not in the drizzle-kit schema glob.
+1. Core catalog: `organizations`, `incidents`, `deployments` (`0014`)
+2. Citizen reports surface (`0015`)
+3. Volunteers (`0016`)
+4. Hospitals and shelters (`0017`)
+5. Family-search slice (`0018`)
+6. Hub federation (`0019`)
+7. Donations, psychology counters, API keys (`0020`)
+8. Mixed-scope `audit_log` (`0021`)
+9. Reconstruction campaign, handwritten SQL (`0022`)
+
+Campaign tables stay out of the drizzle-kit schema glob. Organization-scoped
+tables keep the existing `org_id` stub. Global tables have no tenant columns.

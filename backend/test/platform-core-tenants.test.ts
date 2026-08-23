@@ -28,6 +28,7 @@ const extraOrgId = `org_test_${randomUUID().slice(0, 8)}`;
 const extraIncidentId = `inc_test_${randomUUID().slice(0, 8)}`;
 
 describe("U7 platform core tenant catalog", () => {
+  // CI applies migrations first. Local compose without migrate has no tables.
   afterAll(async () => {
     const { getDb, schema } = await import("@/db");
     const db = getDb();

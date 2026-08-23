@@ -89,14 +89,14 @@ export const deployments = pgTable(
 );
 
 /** Nullable expand columns. U8 tighten sets NOT NULL after backfill. */
-function incidentOwnershipColumns() {
+export function incidentOwnershipColumns() {
   return {
     organizationId: text("organization_id"),
     incidentId: text("incident_id"),
   };
 }
 
-function incidentOwnershipFk(
+export function incidentOwnershipFk(
   tableName: string,
   t: { organizationId: AnyPgColumn; incidentId: AnyPgColumn },
 ) {
