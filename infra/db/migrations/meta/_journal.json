@@ -134,6 +134,13 @@
       "when": 1787452349927,
       "tag": "0018_family_search_tenant",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1787452421992,
+      "tag": "0019_hub_tenant",
+      "breakpoints": true
     }
   ]
 }

@@ -1079,6 +1079,7 @@ const hubCommon = {
   hubCreatedAt: text("hub_created_at"), // created_at del hub (ISO, tal cual)
   ingestedAt: epochMs("ingested_at").notNull(),
   updatedAt: epochMs("updated_at").notNull(),
+  ...incidentOwnershipColumns(),
 };
 
 // Columnas de imagen compartidas (solo en los tipos con foto).
@@ -1105,6 +1106,7 @@ export const hubMissingPersons = pgTable(
     index("idx_hub_missing_photo_pending")
       .on(t.id)
       .where(sql`photo_migrated_at IS NULL AND photo_external_url IS NOT NULL`),
+    incidentOwnershipFk("hub_missing_persons", t),
   ],
 );
 
@@ -1121,6 +1123,7 @@ export const hubCheckins = pgTable(
   (t) => [
     uniqueIndex("idx_hub_checkins_hubid").on(t.hubId),
     index("idx_hub_checkins_source").on(t.source),
+    incidentOwnershipFk("hub_checkins", t),
   ],
 );
 
@@ -1137,6 +1140,7 @@ export const hubHelpRequests = pgTable(
   (t) => [
     uniqueIndex("idx_hub_helpreq_hubid").on(t.hubId),
     index("idx_hub_helpreq_source").on(t.source),
+    incidentOwnershipFk("hub_help_requests", t),
   ],
 );
 
@@ -1152,6 +1156,7 @@ export const hubHelpOffers = pgTable(
   (t) => [
     uniqueIndex("idx_hub_helpoffer_hubid").on(t.hubId),
     index("idx_hub_helpoffer_source").on(t.source),
+    incidentOwnershipFk("hub_help_offers", t),
   ],
 );
 
@@ -1168,18 +1173,24 @@ export const hubDamagedBuildings = pgTable(
   (t) => [
     uniqueIndex("idx_hub_damaged_hubid").on(t.hubId),
     index("idx_hub_damaged_source").on(t.source),
+    incidentOwnershipFk("hub_damaged_buildings", t),
   ],
 );
 
 /* ------------------------------------------------------- hub_sync_state */
 // Cursor de paginación por tipo del hub (created_at|id). Igual que sync_state
 // pero para la federación: el backfill/incremental reanudan desde aquí.
-export const hubSyncState = pgTable("hub_sync_state", {
-  type: text("type").primaryKey(), // missing_person, checkin, ...
-  cursor: text("cursor"), // último next_cursor visto (null = desde el inicio)
-  lastRunAt: epochMs("last_run_at"),
-  cycleCompletedAt: epochMs("cycle_completed_at"),
-});
+export const hubSyncState = pgTable(
+  "hub_sync_state",
+  {
+    type: text("type").primaryKey(),
+    cursor: text("cursor"),
+    lastRunAt: epochMs("last_run_at"),
+    cycleCompletedAt: epochMs("cycle_completed_at"),
+    ...incidentOwnershipColumns(),
+  },
+  (t) => [incidentOwnershipFk("hub_sync_state", t)],
+);
 
 /* ============================================================================
  * AUTH / RBAC — superficie autenticada `api/public/*` (integraciones + admin)
@@ -1445,10 +1456,12 @@ export const hubCredentials = pgTable(
     lastRotatedAt: epochMs("last_rotated_at"), // si se rota la password
     revokedAt: epochMs("revoked_at"), // NULL = activa (soft delete)
     revokedBy: text("revoked_by"),
+    ...incidentOwnershipColumns(),
   },
   (t) => [
-    uniqueIndex("idx_hub_credentials_role").on(t.pgRole), // un rol por credencial
+    uniqueIndex("idx_hub_credentials_role").on(t.pgRole),
     index("idx_hub_credentials_active").on(t.revokedAt),
+    incidentOwnershipFk("hub_credentials", t),
   ],
 );
 
