@@ -1,5 +1,9 @@
 name: Deploy backend
 
+# PLATFORM ISOLATION (U6): this repository must not ship traffic to
+# api.terremotocolombia.co. Jobs run only when ENABLE_PLATFORM_DEPLOYS
+# is the string true. Do not copy Colombia Doppler tokens here.
+#
 # Despliega SOLO la API (Worker terremotocolombia-api).
 #
 # MANUAL (workflow_dispatch) desde 2026-08-11 por la tarde, decision del
@@ -49,6 +53,7 @@ concurrency:
 jobs:
   deploy:
     name: Deploy de la API
+    if: ${{ vars.ENABLE_PLATFORM_DEPLOYS == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
 

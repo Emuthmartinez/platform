@@ -1,5 +1,8 @@
 name: Verificación nocturna de jobs
 
+# PLATFORM ISOLATION (U6): do not hit Colombia staging or production APIs
+# from this clone. Jobs run only when ENABLE_PLATFORM_DEPLOYS is the string true.
+#
 # Corre scripts/verify-jobs.sh contra los dos entornos cada noche: frescura
 # del cron de sismos, API viva y conteo de cartas muertas. Un fallo pone el
 # workflow en rojo — es la señal de "un cron dejó de correr" o "hay cartas
@@ -16,6 +19,7 @@ permissions:
 jobs:
   staging:
     name: Jobs de staging
+    if: ${{ vars.ENABLE_PLATFORM_DEPLOYS == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -44,6 +48,7 @@ jobs:
 
   production:
     name: Jobs de producción
+    if: ${{ vars.ENABLE_PLATFORM_DEPLOYS == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

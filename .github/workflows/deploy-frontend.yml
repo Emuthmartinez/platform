@@ -1,5 +1,10 @@
 name: Deploy frontend
 
+# PLATFORM ISOLATION (U6): this repository must not ship traffic to
+# terremotocolombia.co. Jobs run only when the repository variable
+# ENABLE_PLATFORM_DEPLOYS is the string true, after isolated staging
+# Workers exist. Push to main never deploys from this clone.
+#
 # Despliega SOLO el frontend (Cloudflare Workers, via @opennextjs/cloudflare).
 #
 # El backend NO se toca aqui. Vive en su propio Worker
@@ -9,15 +14,6 @@ name: Deploy frontend
 # El disparo va con lista de rutas: si un commit solo toca backend/ o docs/,
 # este workflow ni siquiera arranca.
 on:
-  push:
-    branches: [main]
-    paths:
-      - "frontend/**"
-      # La identidad del despliegue se INLINEA en el build del frontend
-      # (lib/deployment-config.ts), asi que cambiarla obliga a reconstruir.
-      - "config/deployment.config.json"
-      - ".github/workflows/deploy-frontend.yml"
-  # Para redesplegar sin tener que tocar un fichero.
   workflow_dispatch:
 
 permissions:
@@ -33,6 +29,7 @@ concurrency:
 jobs:
   deploy:
     name: Build y deploy del frontend
+    if: ${{ vars.ENABLE_PLATFORM_DEPLOYS == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
 

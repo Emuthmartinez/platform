@@ -1,5 +1,10 @@
 name: Deploy staging
 
+# PLATFORM ISOLATION (U6): this clone must not deploy Colombia staging
+# (staging.terremotocolombia.co). Jobs run only when ENABLE_PLATFORM_DEPLOYS
+# is the string true, after isolated platform staging exists. Push to the
+# staging branch never deploys from this clone.
+#
 # Despliega el entorno de STAGING completo:
 #   frontend -> terremotocolombia-web-staging  (staging.terremotocolombia.co)
 #   API      -> terremotocolombia-api-staging  (api-staging.terremotocolombia.co)
@@ -14,8 +19,6 @@ name: Deploy staging
 # Se despliegan SIEMPRE los dos tiers, sin filtro de rutas, para que staging no
 # quede con un frontend nuevo hablandole a una API vieja.
 on:
-  push:
-    branches: [staging]
   workflow_dispatch:
 
 permissions:
@@ -28,6 +31,7 @@ concurrency:
 jobs:
   backend:
     name: API de staging
+    if: ${{ vars.ENABLE_PLATFORM_DEPLOYS == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -61,6 +65,7 @@ jobs:
 
   admin:
     name: Admin de staging
+    if: ${{ vars.ENABLE_PLATFORM_DEPLOYS == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     # Detras del backend por el mismo motivo que el frontend: que el panel
@@ -107,6 +112,7 @@ jobs:
 
   frontend:
     name: Frontend de staging
+    if: ${{ vars.ENABLE_PLATFORM_DEPLOYS == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     # Detras del backend: el frontend se construye con NEXT_PUBLIC_API_URL

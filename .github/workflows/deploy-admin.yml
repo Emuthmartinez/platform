@@ -1,5 +1,9 @@
 name: Deploy admin
 
+# PLATFORM ISOLATION (U6): this repository must not ship traffic to
+# admin.terremotocolombia.co. Jobs run only when ENABLE_PLATFORM_DEPLOYS
+# is the string true. Push to main never deploys from this clone.
+#
 # Despliega SOLO el panel admin (Worker terremotocolombia-admin,
 # admin.terremotocolombia.co).
 #
@@ -16,11 +20,6 @@ name: Deploy admin
 #   Actions -> "Deploy admin" -> Run workflow
 #   o: gh workflow run deploy-admin.yml
 on:
-  push:
-    branches: [main]
-    paths:
-      - "admin/**"
-      - ".github/workflows/deploy-admin.yml"
   workflow_dispatch:
 
 permissions:
@@ -33,6 +32,7 @@ concurrency:
 jobs:
   deploy:
     name: Deploy del panel admin
+    if: ${{ vars.ENABLE_PLATFORM_DEPLOYS == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
 

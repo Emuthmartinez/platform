@@ -1,5 +1,10 @@
 name: CI
 
+# PLATFORM ISOLATION (U6): this workflow is safe to run. It does not deploy
+# Workers and it does not need Colombia Doppler tokens. The OpenAPI oasdiff
+# gate is not on the bootstrap SHA; it arrives when U19 imports Phase A
+# after those commits reach Colombia main.
+#
 # CI runs on both long-lived branches. `staging` matters as much as `main`
 # here: the documented flow is work-branch -> PR into `staging` -> PR
 # `staging` -> `main`, so a trigger scoped to `main` alone meant the PR the

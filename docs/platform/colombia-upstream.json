@@ -1,0 +1,15 @@
+{
+  "sourceUrl": "https://github.com/mallanet/Terremotocolombia",
+  "sourceSha": "83b7c1669fda091f092edcb3f470a1e81f5669ba",
+  "sourceRef": "origin/main",
+  "fetchedAt": "2026-08-23T01:43:58Z",
+  "platformBootstrapSha": "83b7c1669fda091f092edcb3f470a1e81f5669ba",
+  "platformRepo": "https://github.com/Emuthmartinez/platform",
+  "intendedOrgRepo": "mallanet/platform",
+  "interimReason": "gh repo create mallanet/platform failed: Emuthmartinez cannot create a repository for mallanet",
+  "colombiaProductionOwner": "mallanet/Terremotocolombia until U21",
+  "doNotImport": {
+    "colombiaStaging": "Do not push Colombia staging into this clone. Phase A (U0-U16) lands on Colombia staging first, then on Colombia main, then U19 imports from Colombia main.",
+    "openapiGate": "The OpenAPI oasdiff CI job is not on this bootstrap SHA. It arrives when U19 imports Phase A after those commits reach Colombia main."
+  }
+}

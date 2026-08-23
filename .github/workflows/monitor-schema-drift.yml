@@ -1,5 +1,8 @@
 name: Monitor de deriva de esquema
 
+# PLATFORM ISOLATION (U6): do not probe Colombia Neon from this clone.
+# Jobs run only when ENABLE_PLATFORM_DEPLOYS is the string true.
+#
 # Red de seguridad PERMANENTE contra la deriva entre el codigo desplegado y el
 # esquema real de la base.
 #
@@ -33,6 +36,7 @@ concurrency:
 jobs:
   drift:
     name: deriva (${{ matrix.entorno }})
+    if: ${{ vars.ENABLE_PLATFORM_DEPLOYS == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     strategy:

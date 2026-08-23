@@ -1,28 +1,37 @@
 # AGENTS.md
 
 This is the operating guide for code agents (and humans) who work in this
-repository: **the production deployment of terremotocolombia.co** (Terremoto
-Colombia 2026, Mallanet.org). It runs a report map/list, a
-hospital/shelter directory, a collection-center directory, an admin panel
-with role-based access, and a sync worker.
+repository: the **Mallanet multi-incident platform** clone (U6). The live
+Colombia deployment remains
+[mallanet/Terremotocolombia](https://github.com/mallanet/Terremotocolombia)
+until cutover unit U21.
 
 The project began as a generic template, and most of the code still is
-generic. The deployment identity lives in `config/deployment.config.json`
-and in Doppler, never hardcoded. But the launch already happened, and this
-deployment serves real traffic.
+generic. The clone identity in `config/deployment.config.json` still names
+Colombia hostnames. That is the source snapshot. It is **not** permission
+to deploy those hostnames from this repository.
 
 > **`CLAUDE.md` and `AGENTS.md` are two separate files, on purpose. Do not
 > merge them, and do not turn one into a symlink of the other.**
 >
-> An earlier version of this file asked for exactly that merge. That
-> instruction no longer applies, and following it now would cause harm.
 > `CLAUDE.md` holds what an agent needs to know **before** touching
-> anything: that a push to `main` deploys, what a human must always handle,
-> and where each piece runs. Turning it into a link to this file would erase
-> all of that.
+> anything: this clone does not deploy Colombia; promotion and secrets stay
+> human-gated; Colombia production stays on the original repo until U21.
 >
 > The split: **`CLAUDE.md` governs deployment and operational security**.
 > **This file governs code conventions.**
+
+## Two-repo drift (KD1)
+
+Colombia `main` can still change while this repo is the platform home.
+U19 owns the one-way import. Do not merge Colombia `staging` into this
+`main` to “catch up” Phase A. Import only from Colombia `origin/main`
+after those commits land there. Record each import in
+`docs/platform/colombia-sync-ledger.md` when that file exists.
+
+Backport a platform fix to Colombia only when Colombia production needs it
+before U21. Keep the backport small. Do not grow a second long-lived
+feature branch in Colombia for platform work.
 
 ## Before you touch code
 
@@ -39,13 +48,10 @@ deployment serves real traffic.
   more than a broad refactor.
 - Do not rewrite history, delete branches you do not own, or revert changes
   you did not make.
-- **A merge to `main` that touches `frontend/**` or
-  `config/deployment.config.json` deploys the frontend automatically, with
-  no approval step.** Treat "push to main" the same as "deploy to a site
-  people are using right now." **The backend does not deploy on its own** —
-  it deploys only when a human runs `deploy-backend.yml` by hand
-  (`workflow_dispatch`), which also runs a schema-drift gate. For the full
-  rules on what a human must always do: `CLAUDE.md`.
+- **A merge to `main` in this clone does not deploy Colombia.** Deploy
+  workflows stay skipped unless `ENABLE_PLATFORM_DEPLOYS` is `true` after
+  isolated staging exists. Colombia production still releases from
+  `mallanet/Terremotocolombia` until U21. For the full rules: `CLAUDE.md`.
 
 ## Architecture rule
 
@@ -346,9 +352,10 @@ The backend has TWO HTTP surfaces, and each one follows its own pattern:
 
 In `docker-compose.prod.yml`, the `migrate` service runs before
 `backend`/`worker` start. **That is NOT what happens in production
-today.** Production runs on Cloudflare Workers: a push to `main` deploys
-**code**, and nothing else. A human gates every migration, and neither CI
-nor any deploy runs one.
+today.** Colombia production runs on Cloudflare Workers from
+`mallanet/Terremotocolombia`: a push to that repo's `main` deploys
+**code**, and nothing else. This clone does not deploy that production.
+A human gates every migration, and neither CI nor any deploy runs one.
 
 This already caused an outage (2026-08-11, commit `a81e17c`): a single
 commit carried both a new `.sql` migration and the code that needed it.

@@ -1,6 +1,17 @@
-# Terremoto Colombia — terremotocolombia.co
+# Mallanet platform — clon de desarrollo
 
 *[Read it in English](README.md)*
+
+Este repositorio es el clon de la **plataforma multi-incidente** (unidad U6).
+Es canónico para el desarrollo de la plataforma. **No** es la fuente de
+producción de Colombia hasta la unidad U21.
+
+La producción de Colombia sigue en **https://terremotocolombia.co**, desde
+[mallanet/Terremotocolombia](https://github.com/mallanet/Terremotocolombia).
+
+**No copies tokens de Doppler o Cloudflare de Colombia aquí.** Los
+workflows de deploy no corren salvo que `ENABLE_PLATFORM_DEPLOYS` sea
+`true` después de existir un staging aislado.
 
 Sitio de respuesta al **terremoto de Colombia de 2026**, operado por
 [Mallanet.org](https://mallanet.org): mapa de emergencia ciudadano en tiempo
@@ -8,23 +19,9 @@ real con reportes georreferenciados, directorio de personas desaparecidas +
 hospitales/refugios, directorio de centros de acopio, y panel de administración
 con control de acceso por roles.
 
-**→ https://terremotocolombia.co**
+**Producción de Colombia → https://terremotocolombia.co**
 
-> Este repositorio **ya no es la plantilla genérica**: es un despliegue en
-> producción sirviendo tráfico real. Nació como fork de una plantilla de
-> respuesta a desastres y casi todo el código sigue siendo genérico —la
-> identidad (organización, nombre del desastre, región, dominios, contacto,
-> centro del mapa) sigue viviendo en `config/deployment.config.json`, nunca en
-> el código—, pero el standup ya ocurrió y **empujar a `main` despliega el
-> frontend automáticamente**.
->
-> Si llegas buscando levantar tu propio despliegue para otro desastre, parte de
-> la plantilla original y no de este repo: este lleva la identidad y la marca de
-> Mallanet.
-
-Agentes y colaboradores: lee [`CLAUDE.md`](CLAUDE.md) primero — cubre dónde
-corre esto de verdad, qué se despliega solo, y qué no se toca nunca sin un
-humano.
+Agentes y colaboradores: lee [`CLAUDE.md`](CLAUDE.md) primero.
 
 ## Este despliegue
 

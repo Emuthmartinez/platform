@@ -1,41 +1,68 @@
 # CLAUDE.md — entry point for agents
 
-This repository is no longer the generic template. It is the **production
-deployment** of **terremotocolombia.co** (Terremoto Colombia 2026,
-Mallanet.org). It serves real traffic right now.
+> **This repository is the Mallanet multi-incident platform clone (U6).**
+> It is canonical for **platform development**. It is **not** the Colombia
+> production release source until cutover unit U21.
+>
+> Colombia production remains
+> [mallanet/Terremotocolombia](https://github.com/mallanet/Terremotocolombia).
+> Clone source: `origin/main` SHA
+> `83b7c1669fda091f092edcb3f470a1e81f5669ba`. Record:
+> [`docs/platform/colombia-upstream.json`](docs/platform/colombia-upstream.json).
+>
+> **Do not add Colombia Doppler tokens, Cloudflare tokens, or zone bindings
+> to this repository.** Deploy, drift-monitor, and verify-jobs workflows are
+> inert unless repository variable `ENABLE_PLATFORM_DEPLOYS` is the string
+> `true` after isolated platform staging exists. A push to `main` here does
+> **not** upload or promote terremotocolombia.co Workers.
+>
+> Intended org home is `mallanet/platform`. This clone lives at
+> `Emuthmartinez/platform` because `gh repo create mallanet/platform` is not
+> allowed with the current token. Transfer when an org owner can.
 
-The repository began as a fork of a public disaster-response template. Most
-of the code is still generic. One fact matters most for you: the deployment
-identity is already set, the launch already happened, and **anything you
-push to `main` goes live**. For code conventions (endpoints, integration
-modules, Drizzle, ESLint rules), read [`AGENTS.md`](AGENTS.md).
+This repository began as a clone of the Colombia deployment of
+**terremotocolombia.co** (Terremoto Colombia 2026, Mallanet.org). Most of
+the code is still that deployment. One fact matters most for you: **this
+clone must not own Colombia production resources.** For code conventions
+(endpoints, integration modules, Drizzle, ESLint rules), read
+[`AGENTS.md`](AGENTS.md).
 
-## First fact: a push to `main` deploys the frontend and the admin panel — not the backend
+## First fact: a push to `main` does not deploy Colombia
 
-**Frontend and admin** deploy on their own on every push to `main`, each
-with its own path filter: `deploy-frontend.yml` (`frontend/**` and
-`config/deployment.config.json`) and `deploy-admin.yml` (`admin/**`). No
-approval step exists for those two. Every commit is a deploy to a site
-that people use to search for missing family members.
+On the Colombia production repo, frontend and admin still deploy (or
+upload) from `main`. **On this clone those workflows are dispatch-only and
+gated.** Do not set `ENABLE_PLATFORM_DEPLOYS` until isolated Workers,
+Doppler configs, and Neon branches exist for the platform.
 
-**The production backend deploy is MANUAL** (`deploy-backend.yml`,
-`workflow_dispatch` only). The maintainer set this up on the afternoon of
-2026-08-11, after a 6-hour `503` incident caused by schema drift. Merging
-to `main` leaves the code ready, but the API Worker only deploys when a
-human runs the workflow — which also runs a schema-drift gate that fails
-closed. Staging still deploys on its own (`deploy-staging.yml`).
+The Colombia production backend stays on `mallanet/Terremotocolombia`. Do
+not run `deploy-backend.yml` from this clone against Colombia secrets.
 
 ```mermaid
 flowchart LR
-    push(["git push to main"]) --> gh["GitHub Actions\n(path-filtered per workflow)"]
-    gh -->|"frontend/**"| wf["deploy-frontend.yml\n(automatic)"]
-    gh -->|"admin/**"| wa["deploy-admin.yml\n(automatic)"]
-    gh -.->|"backend/**, infra/db/**\n(code ready, not deployed)"| wbReady["deploy-backend.yml\nwaits for a human"]
-    human(["a human runs\nworkflow_dispatch"]) --> wb["deploy-backend.yml\nschema-drift gate, fails closed"]
-    wf --> workerF["Worker\nterremotocolombia-web"]
-    wa --> workerA["Worker\nterremotocolombia-admin"]
-    wb --> workerB["Worker\nterremotocolombia-api"]
-    workerB -. "schema change: separate,\nmanual, earlier step" .-> migrate["backend/worker/migrate.ts\nagainst Neon direct endpoint"]
+  colombia["mallanet/Terremotocolombia\nColombia production until U21"]
+  platform["Emuthmartinez/platform\nplatform development"]
+  colombia -->|"U19 import"| platform
+  platform -->|"U21 cutover"| prod["terremotocolombia.co"]
+```
+
+**Colombia production repo (not this clone):** frontend and admin deploy on
+their own on every push to that repo's `main`. **This clone does not.**
+The gated workflows below still name Colombia Worker names because they
+came from the snapshot. Leave them gated.
+
+**Colombia production backend deploy is MANUAL** on
+`mallanet/Terremotocolombia` (`deploy-backend.yml`, `workflow_dispatch`
+only). Do not run that workflow from this clone against Colombia secrets.
+Staging on the Colombia repo still deploys on its own (`deploy-staging.yml`).
+This clone's copy of that workflow is dispatch-only and gated.
+
+```mermaid
+flowchart LR
+    push(["git push to this clone main"]) --> gh["GitHub Actions"]
+    gh --> ci["ci.yml allowed"]
+    gh --> gated["deploy / monitor / verify-jobs"]
+    gated -->|"ENABLE_PLATFORM_DEPLOYS != true"| skip["jobs skipped"]
+    colombia["mallanet/Terremotocolombia"] --> prod["terremotocolombia.co until U21"]
 ```
 
 **Never do these tasks on your own initiative.** Each one needs a human:

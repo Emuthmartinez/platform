@@ -1,6 +1,28 @@
-# Terremoto Colombia — terremotocolombia.co
+# Mallanet platform — development clone
 
 *[Léelo en español](README.es.md)*
+
+This repository is the **multi-incident platform** clone (unit U6). It is
+canonical for platform development. It is **not** the Colombia production
+release source until cutover unit U21.
+
+Colombia production remains **https://terremotocolombia.co**, released from
+[mallanet/Terremotocolombia](https://github.com/mallanet/Terremotocolombia).
+
+This clone started from Colombia `origin/main` SHA
+`83b7c1669fda091f092edcb3f470a1e81f5669ba`. See
+[`docs/platform/colombia-upstream.json`](docs/platform/colombia-upstream.json).
+
+**Do not add Colombia Doppler or Cloudflare tokens here.** Deploy workflows
+are dispatch-only and stay skipped unless repository variable
+`ENABLE_PLATFORM_DEPLOYS` is the string `true` after isolated platform
+staging exists.
+
+> The application identity in `config/deployment.config.json` still names
+> Colombia domains because that is the immutable clone snapshot. Changing
+> those values here does not retarget production. Isolated staging Workers
+> and Doppler configs come later (U9 / U20). Until then, CI is the only
+> GitHub Action that should run.
 
 Live disaster-response site for the **2026 Colombia earthquake**, run by
 [Mallanet.org](https://mallanet.org). It is a real-time citizen emergency map
@@ -8,44 +30,30 @@ with georeferenced incident reports, a missing-persons + hospital/shelter
 directory, a collection-center directory, and an admin panel with role-based
 access.
 
-**→ https://terremotocolombia.co**
+**Colombia production → https://terremotocolombia.co**
 
-> This is **not** the generic template any more — it is a live deployment
-> serving real traffic. It began as a fork of a disaster-response template, and
-> most of the code is still generic. Every identity value (organization,
-> disaster name, region, domains, contact, map center) still lives in
-> `config/deployment.config.json`, never hardcoded. But the standup already
-> happened, the identity is filled in, and **pushing to `main` deploys the
-> frontend automatically**.
->
-> If you are here to stand up your own deployment for a different disaster,
-> start from the upstream template rather than forking this repo. This one
-> carries Mallanet's identity and branding.
+Agents and contributors: read [`CLAUDE.md`](CLAUDE.md) first — it covers
+where this clone sits relative to Colombia production, and what a human
+must always do.
 
-Agents and contributors: read [`CLAUDE.md`](CLAUDE.md) first — it covers where
-this actually runs, what deploys automatically, and what a human must always
-do.
-
-## This deployment
+## This clone (not Colombia production)
 
 | | |
 | --- | --- |
-| Live | **https://terremotocolombia.co** |
-| Frontend | Cloudflare Workers (`@opennextjs/cloudflare`) |
-| API | Cloudflare Workers, `api.terremotocolombia.co` |
-| Database | Neon Postgres (external) |
-| Secrets | Doppler — not `.env` files |
-| Admin panel | Cloudflare Workers, `admin.terremotocolombia.co` (behind Cloudflare Access) |
-| Frontend deploys | **Automatically, on every push to `main`** touching `frontend/**` |
-| Admin deploys | **Automatically, on every push to `main`** touching `admin/**` |
-| Backend deploys | **Manual only** — `workflow_dispatch`, never on merge |
+| Platform repo | https://github.com/Emuthmartinez/platform (interim; intended `mallanet/platform`) |
+| Colombia production repo | https://github.com/mallanet/Terremotocolombia |
+| Live Colombia site | **https://terremotocolombia.co** |
+| Frontend / API / Admin identity in this snapshot | Colombia hostnames in `config/deployment.config.json` |
+| Database | Neon Postgres (Colombia project; do not migrate from this clone) |
+| Secrets | Do not copy Colombia Doppler `prd` into this repository |
+| Admin panel | Colombia production still behind Cloudflare Access |
+| Frontend deploys from this clone | **Off** until `ENABLE_PLATFORM_DEPLOYS=true` and isolated Workers exist |
+| Admin deploys from this clone | **Off** (same gate) |
+| Backend deploys from this clone | **Off** (same gate) |
 
-**`main` is production**. There is also a `staging` branch and environment
-(`staging.terremotocolombia.co`, its own Neon branch) where the whole stack —
-including the API — deploys automatically. Production is the asymmetric one: the
-frontend and admin panel ship with the merge, but the API only ships when a
-human launches `deploy-backend.yml`. That workflow first runs a schema-drift
-gate that fails closed. CI never runs migrations, in either environment.
+**This clone's `main` is not Colombia production.** Colombia `main` on
+`mallanet/Terremotocolombia` remains the production release source until
+U21. Do not treat a merge here as a live deploy.
 
 Not currently deployed: the BullMQ queue worker (its jobs were ported to
 Cloudflare Queues and Cron Triggers).
