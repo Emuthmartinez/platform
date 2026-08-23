@@ -22,11 +22,12 @@ import type {
   SignalsQueueResponse,
   UnmergeResponse,
 } from "./types";
+import { scopedQueryKey } from "@/src/lib/query-scope";
 
 const BASE = "/api/admin/family-search";
 
 export function queueQueryKey(status?: string) {
-  return ["family-search-queue", status ?? "proposed"] as const;
+  return scopedQueryKey("family-search-queue", status ?? "proposed");
 }
 
 export async function fetchQueuePage(params: {
@@ -85,8 +86,16 @@ export function fetchClusterFicha(clusterId: string): Promise<ClusterFichaRespon
  *  tiene un filtro de status en la URL, la cola siempre es "pending". Usada
  *  también por `shell.tsx` (nav badge) y `cluster-ficha.tsx` (chip de
  *  cluster) para leer/invalidar el MISMO cache — ver esos archivos. */
+export function clusterFichaQueryKey(clusterId: string) {
+  return scopedQueryKey("family-search-cluster", clusterId);
+}
+
+export function recordsSearchQueryKey(query: string) {
+  return scopedQueryKey("family-search-records-search", query);
+}
+
 export function signalsQueryKey() {
-  return ["family-search-signals"] as const;
+  return scopedQueryKey("family-search-signals");
 }
 
 export async function fetchSignalsPage(params: {

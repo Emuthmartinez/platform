@@ -10,6 +10,7 @@ import { useState, type FormEvent } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Button, Input } from "@/src/ui";
 import { adminFetch, type FetchInit } from "@/src/shared/http/admin-fetch";
+import { scopedQueryKey } from "@/src/lib/query-scope";
 import { useModelList } from "../models/ui/use-model-list";
 import { ImportRowsTable } from "./import-rows-table";
 
@@ -97,7 +98,7 @@ export function PatientImportsAdmin() {
   const [retryEnFlight, setRetryEnFlight] = useState(false);
 
   const summary = useQuery({
-    queryKey: ["patient-import", importId],
+    queryKey: scopedQueryKey("patient-import", importId),
     queryFn: () =>
       requestJson<{ import: ImportSummary }>(
         `/api/admin/patient-imports/${encodeURIComponent(importId)}`,

@@ -20,7 +20,7 @@ import {
   DecisionRequestError,
   useDecisionMutation,
 } from "@/src/shared/mutation/use-decision-mutation";
-import { fetchClusterFicha, postUnmerge, queueQueryKey, signalsQueryKey } from "./api";
+import { fetchClusterFicha, postUnmerge, queueQueryKey, signalsQueryKey, clusterFichaQueryKey } from "./api";
 import { ManualLinkSearch } from "./manual-link-search";
 import { Modal } from "./modal";
 import { RecordSummary } from "./record-summary";
@@ -31,10 +31,6 @@ import type {
   SignalsQueueResponse,
   UnmergeResponse,
 } from "./types";
-
-function clusterFichaQueryKey(clusterId: string) {
-  return ["family-search-cluster", clusterId] as const;
-}
 
 function formatDate(epochMs: number): string {
   return new Date(epochMs).toLocaleString("es", {

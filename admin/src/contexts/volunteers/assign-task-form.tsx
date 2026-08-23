@@ -4,7 +4,7 @@ import { useState, type FormEvent } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/src/ui";
 import { adminFetch } from "../../shared/http/admin-fetch";
-import { useModelList } from "../models/ui/use-model-list";
+import { useModelList, modelQueryKey } from "../models/ui/use-model-list";
 
 /**
  * Formulario "Asignar" de una tarea (bajo la tabla cuando el modelo es
@@ -44,7 +44,7 @@ export function AssignTaskForm({
     },
     onSuccess: (body) => {
       setSentTo(body?.sentTo ?? null);
-      queryClient.invalidateQueries({ queryKey: ["model", "volunteer-tasks"] });
+      queryClient.invalidateQueries({ queryKey: modelQueryKey("volunteer-tasks") });
     },
   });
 

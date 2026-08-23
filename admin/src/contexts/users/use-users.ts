@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { adminFetch } from "@/src/shared/http/admin-fetch";
+import { scopedQueryKey } from "@/src/lib/query-scope";
 
 export type UserStatus = "invited" | "active" | "disabled";
 
@@ -21,7 +22,7 @@ export interface UpdateUserInput {
   name?: string;
 }
 
-const USERS_KEY = ["admin", "users"] as const;
+const USERS_KEY = scopedQueryKey("admin", "users");
 
 async function mutateJson<T>(url: string, method: string, body?: unknown): Promise<T> {
   const res = await adminFetch(url, {

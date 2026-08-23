@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { makeQueryClient } from "@/lib/get-query-client";
+import { clearClientQueriesOnScopeChange } from "@/lib/query-scope";
 
 /**
  * Provider de TanStack Query. El QueryClient se crea UNA vez por montaje del
@@ -10,6 +11,10 @@ import { makeQueryClient } from "@/lib/get-query-client";
  * (evita compartir cache entre requests SSR). Envuelve la app en layout.tsx.
  */
 export default function QueryProvider({ children }: { children: ReactNode }) {
-  const [client] = useState(makeQueryClient);
+  const [client] = useState(() => {
+    const next = makeQueryClient();
+    clearClientQueriesOnScopeChange(next);
+    return next;
+  });
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }

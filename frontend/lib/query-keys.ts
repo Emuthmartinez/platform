@@ -5,70 +5,89 @@
  * MISMA clave o se dispara doble request (el bug que teníamos: carousel + lista
  * polleaban /api/missing por separado). Centralizar las claves lo garantiza.
  *
- * Convención: [dominio, sub, ...params]. Las invalidaciones por prefijo
+ * Convención: [organizationId, incidentId, cacheEpoch, dominio, sub, ...params]
+ * excepto earthquakes (KTD10, catálogo global). Las invalidaciones por prefijo
  * (queryClient.invalidateQueries({ queryKey: qk.missing.all })) limpian todo el
- * dominio tras una mutación.
+ * dominio de este incidente tras una mutación.
  */
+import {
+  COLOMBIA_INCIDENT_ID,
+  COLOMBIA_ORGANIZATION_ID,
+  TENANT_CACHE_EPOCH,
+} from "@/lib/tenant";
+
+const TENANT = [
+  COLOMBIA_ORGANIZATION_ID,
+  COLOMBIA_INCIDENT_ID,
+  TENANT_CACHE_EPOCH,
+] as const;
+
+function t<Rest extends readonly unknown[]>(
+  ...rest: Rest
+): readonly [...typeof TENANT, ...Rest] {
+  return [...TENANT, ...rest] as const;
+}
+
 export const qk = {
   missing: {
-    all: ["missing"] as const,
+    all: t("missing"),
     list: (p: { status: string; page: number; pageSize: number; q?: string }) =>
-      ["missing", "list", p] as const,
+      t("missing", "list", p),
     map: (bounds: { north: number; south: number; east: number; west: number } | null) =>
-      ["missing", "map", bounds] as const,
-    stats: ["missing", "stats"] as const,
+      t("missing", "map", bounds),
+    stats: t("missing", "stats"),
   },
   deceased: {
-    all: ["deceased"] as const,
+    all: t("deceased"),
     list: (p: { page: number; pageSize: number; q?: string }) =>
-      ["deceased", "list", p] as const,
+      t("deceased", "list", p),
   },
   // Dominio APARTE de `missing` (tabla y endpoints distintos, ver
   // backend/src/services/pets.ts). Invalidar mascotas nunca toca personas.
   pets: {
-    all: ["pets"] as const,
+    all: t("pets"),
     list: (p: {
       status: string;
       page: number;
       pageSize: number;
       q?: string;
       species?: string;
-    }) => ["pets", "list", p] as const,
+    }) => t("pets", "list", p),
     map: (bounds: { north: number; south: number; east: number; west: number } | null) =>
-      ["pets", "map", bounds] as const,
-    stats: ["pets", "stats"] as const,
+      t("pets", "map", bounds),
+    stats: t("pets", "stats"),
   },
   reports: {
-    all: ["reports"] as const,
-    list: ["reports", "list"] as const,
+    all: t("reports"),
+    list: t("reports", "list"),
   },
   earthquakes: {
-    all: ["earthquakes"] as const,
-    list: ["earthquakes", "list"] as const,
+    all: ["g", "earthquakes"] as const,
+    list: ["g", "earthquakes", "list"] as const,
   },
   hospitals: {
-    all: ["hospitals"] as const,
-    list: (p?: Record<string, unknown>) => ["hospitals", "list", p ?? {}] as const,
-    patients: (hospitalId: string) => ["hospitals", hospitalId, "patients"] as const,
-    supplies: (hospitalId: string) => ["hospitals", hospitalId, "supplies"] as const,
-    patientSearch: (q: string) => ["hospitals", "patient-search", q] as const,
+    all: t("hospitals"),
+    list: (p?: Record<string, unknown>) => t("hospitals", "list", p ?? {}),
+    patients: (hospitalId: string) => t("hospitals", hospitalId, "patients"),
+    supplies: (hospitalId: string) => t("hospitals", hospitalId, "supplies"),
+    patientSearch: (q: string) => t("hospitals", "patient-search", q),
   },
   chat: {
-    all: ["chat"] as const,
-    list: (role?: string) => ["chat", "list", role ?? "all"] as const,
+    all: t("chat"),
+    list: (role?: string) => t("chat", "list", role ?? "all"),
   },
   contact: {
-    all: ["contact"] as const,
+    all: t("contact"),
   },
   acopio: {
-    all: ["acopio"] as const,
+    all: t("acopio"),
     list: (p: { country?: string; category?: string; q?: string }) =>
-      ["acopio", "list", p] as const,
+      t("acopio", "list", p),
   },
   needs: {
-    all: ["needs"] as const,
-    publication: (jobId: string | null) =>
-      ["needs", "publication", jobId] as const,
+    all: t("needs"),
+    publication: (jobId: string | null) => t("needs", "publication", jobId),
   },
-  geocode: (q: string) => ["geocode", q] as const,
+  geocode: (q: string) => t("geocode", q),
+  offlineDrafts: t("offline-drafts"),
 } as const;

@@ -16,14 +16,14 @@
 import { useQuery } from "@tanstack/react-query";
 import { RequireCapability } from "@/src/shared/auth/admin-gate";
 import { Button } from "@/src/ui";
-import { fetchClusterFicha } from "./api";
+import { clusterFichaQueryKey, fetchClusterFicha } from "./api";
 import { Modal } from "./modal";
 import { RecordSummary } from "./record-summary";
 import type { ClusterFichaDTO, QueueItemDTO } from "./types";
 
 function ClusterColumn({ clusterId, fallback, title }: { clusterId: string | null; fallback: QueueItemDTO["a"]; title: string }) {
   const query = useQuery({
-    queryKey: ["family-search-cluster", clusterId],
+    queryKey: clusterFichaQueryKey(clusterId ?? ""),
     queryFn: () => fetchClusterFicha(clusterId!),
     enabled: Boolean(clusterId),
   });

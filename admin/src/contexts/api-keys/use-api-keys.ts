@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { adminFetch } from "@/src/shared/http/admin-fetch";
+import { scopedQueryKey } from "@/src/lib/query-scope";
 
 export interface ApiKey {
   id: string;
@@ -26,7 +27,7 @@ export interface CreatedApiKey {
   key: string;
 }
 
-const KEYS = ["admin", "api-keys"] as const;
+const KEYS = scopedQueryKey("admin", "api-keys");
 
 async function getJson<T>(url: string): Promise<T> {
   const res = await adminFetch(url);

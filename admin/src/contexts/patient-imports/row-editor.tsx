@@ -21,6 +21,7 @@ import {
   useDecisionMutation,
 } from "@/src/shared/mutation/use-decision-mutation";
 import { useModelList } from "../models/ui/use-model-list";
+import { scopedQueryKey } from "@/src/lib/query-scope";
 import type { ImportRow } from "./import-rows-table";
 
 // Mismos valores/etiquetas que `frontend/lib/hospitals-meta.ts`
@@ -70,7 +71,7 @@ interface DedupDecisionPayload {
 }
 
 function rowsQueryKey(importId: string) {
-  return ["patient-import-rows", importId] as const;
+  return scopedQueryKey("patient-import-rows", importId);
 }
 
 export function RowEditor({

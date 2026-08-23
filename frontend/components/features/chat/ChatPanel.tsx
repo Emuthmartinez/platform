@@ -18,6 +18,14 @@ import {
   type ChatMessage,
   type ChatRole,
 } from "@/lib/chat-types";
+import {
+  ADMIN_SESSION_TOKEN_KEY,
+  CHAT_NAME_KEY,
+  CHAT_NAME_LEGACY_KEY,
+  CHAT_ROLE_KEY,
+  CHAT_ROLE_LEGACY_KEY,
+} from "@/lib/browser-storage-registry";
+import { migrateLegacyLocalStorage } from "@/lib/incident-storage";
 
 interface ChatNode {
   message: ChatMessage;
@@ -26,9 +34,6 @@ interface ChatNode {
 
 const POLL_INTERVAL_MS = 5000;
 const LOW_BANDWIDTH_POLL_INTERVAL_MS = 30_000;
-const ADMIN_STORAGE_KEY = "emergency:adminToken";
-const NAME_STORAGE_KEY = "emergency:chatName";
-const ROLE_STORAGE_KEY = "emergency:chatRole";
 const MAX_TEXT = 500;
 const MAX_THREAD_DEPTH = 6;
 
@@ -74,14 +79,15 @@ function formatTime(ts: number): string {
 
 export default function ChatPanel() {
   const { ensureConsent } = usePrivacyConsent();
-  const [name, setName] = useState(() =>
-    typeof window === "undefined"
-      ? ""
-      : (localStorage.getItem(NAME_STORAGE_KEY) ?? ""),
-  );
+  const [name, setName] = useState(() => {
+    if (typeof window === "undefined") return "";
+    migrateLegacyLocalStorage(CHAT_NAME_LEGACY_KEY, CHAT_NAME_KEY);
+    return localStorage.getItem(CHAT_NAME_KEY) ?? "";
+  });
   const [role, setRole] = useState<ChatRole>(() => {
     if (typeof window === "undefined") return "citizen";
-    const stored = localStorage.getItem(ROLE_STORAGE_KEY);
+    migrateLegacyLocalStorage(CHAT_ROLE_LEGACY_KEY, CHAT_ROLE_KEY);
+    const stored = localStorage.getItem(CHAT_ROLE_KEY);
     return isValidChatRole(stored ?? "") ? (stored as ChatRole) : "citizen";
   });
   const [showRolePicker, setShowRolePicker] = useState(false);
@@ -111,7 +117,7 @@ export default function ChatPanel() {
   // El token admin vive en sessionStorage (no es dato de red): re-leerlo al
   // montar y al volver la pestaña a primer plano, como hacía el poller previo.
   useEffect(() => {
-    const read = () => setAdminToken(sessionStorage.getItem(ADMIN_STORAGE_KEY));
+    const read = () => setAdminToken(sessionStorage.getItem(ADMIN_SESSION_TOKEN_KEY));
     read();
     document.addEventListener("visibilitychange", read);
     return () => document.removeEventListener("visibilitychange", read);
@@ -132,7 +138,7 @@ export default function ChatPanel() {
 
   const handleRoleChange = useCallback((next: ChatRole) => {
     setRole(next);
-    localStorage.setItem(ROLE_STORAGE_KEY, next);
+    localStorage.setItem(CHAT_ROLE_KEY, next);
     setShowRolePicker(false);
   }, []);
 
@@ -144,7 +150,7 @@ export default function ChatPanel() {
       if (!trimmed) return;
       // Consentimiento antes de publicar un mensaje (es contenido publico).
       if (!(await ensureConsent())) return;
-      localStorage.setItem(NAME_STORAGE_KEY, name.trim());
+      localStorage.setItem(CHAT_NAME_KEY, name.trim());
       try {
         // Token FRESCO de Turnstile para este envío (se resetea tras leerlo).
         const turnstileToken = await turnstileGetToken();

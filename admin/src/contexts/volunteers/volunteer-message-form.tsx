@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button, Input } from "@/src/ui";
 import { adminFetch } from "../../shared/http/admin-fetch";
+import { modelQueryKey } from "../models/ui/use-model-list";
 
 /**
  * Formulario "Contactar" de un voluntario (se renderiza bajo la tabla cuando
@@ -45,7 +46,7 @@ export function VolunteerMessageForm({
     },
     onSuccess: (body) => {
       setSentTo(body?.sentTo ?? contact);
-      queryClient.invalidateQueries({ queryKey: ["model", "volunteers"] });
+      queryClient.invalidateQueries({ queryKey: modelQueryKey("volunteers") });
     },
   });
 

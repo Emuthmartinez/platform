@@ -91,6 +91,22 @@ API, and the frontend anchors them to the backend with `mediaUrl()`.
 - Build inlines every `NEXT_PUBLIC_*` variable. A change to one of these
   variables needs a frontend rebuild and redeploy.
 - TanStack Query manages client-side cache, deduplication, and polling.
+  Incident-scoped keys start with
+  `[organizationId, incidentId, cacheEpoch, …]`. Earthquakes stay on the
+  global prefix `g` (KTD10). A scope change clears the client cache.
+- Next.js ISR fetches (`serverApiGetCached`) tag responses with
+  `incident:{org}:{incident}:{epoch}`.
+- IndexedDB report drafts are protocol v2: tenant ids, a deterministic
+  submission key, and status `verification_required` for migrated v1 rows.
+  Auto-flush does not send those drafts. Auto-delete runs only after a
+  confirmed durable POST. Inventory:
+  `docs/platform/browser-storage-registry.md`.
+- The service worker (`frontend/public/sw.js`) names caches from epoch +
+  tenant (`mallanet-e0-…`). It keeps the v9 names for rollback. Activate
+  deletes only `mallanet-` names that are not in the keep set. JSON caching
+  uses an anonymous public allowlist; chat, patients, photos JSON, and
+  credentialed requests bypass the SW cache. Config is generated at build
+  (`frontend/public/sw-config.js`).
 - `ClientErrorReporter` and both Next.js error boundaries send a redacted
   `client_error` event through the existing OpenPanel client. The event does
   not include the error message or page path, because both can contain PII or

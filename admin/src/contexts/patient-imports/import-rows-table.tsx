@@ -8,6 +8,7 @@
 import { Fragment, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { adminFetch } from "@/src/shared/http/admin-fetch";
+import { scopedQueryKey } from "@/src/lib/query-scope";
 import { Button } from "@/src/ui";
 import { RowEditor } from "./row-editor";
 
@@ -79,7 +80,7 @@ export function ImportRowsTable({
   const [filter, setFilter] = useState<string>("todas");
   const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
   const rows = useQuery({
-    queryKey: ["patient-import-rows", importId],
+    queryKey: scopedQueryKey("patient-import-rows", importId),
     queryFn: () => fetchRows(importId),
     refetchInterval: live ? 3_000 : false,
   });

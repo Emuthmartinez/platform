@@ -5,6 +5,7 @@ import type {
   RescueMapMappingAoi,
   RescueMapMappingSnapshot,
 } from "@/lib/rescue-map";
+import { COLOMBIA_RESCUE_INCIDENT_ID } from "@/lib/tenant";
 
 const DB_NAME = "terremoto-colombia-rescue-map";
 const DB_VERSION = 1;
@@ -172,7 +173,13 @@ export async function loadRescueSnapshot(): Promise<RescueMapOfflineSnapshot | n
   return closeAfter(
     db,
     Promise.all([value, transactionDone(transaction)]).then(
-      ([snapshot]) => snapshot ?? null,
+      ([snapshot]) => {
+        if (!snapshot) return null;
+        if (snapshot.incident.incidentId !== COLOMBIA_RESCUE_INCIDENT_ID) {
+          return null;
+        }
+        return snapshot;
+      },
     ),
   );
 }
@@ -210,7 +217,7 @@ export async function saveRescueSnapshot(
   }
 }
 
-export async function listRescueOfflinePackages(): Promise<
+export async function listAllRescueOfflinePackages(): Promise<
   RescueMapOfflinePackage[]
 > {
   if (!supportsIndexedDb()) return [];
@@ -226,6 +233,15 @@ export async function listRescueOfflinePackages(): Promise<
     Promise.all([value, transactionDone(transaction)]).then(([items]) =>
       items.sort((a, b) => a.aoiId.localeCompare(b.aoiId)),
     ),
+  );
+}
+
+export async function listRescueOfflinePackages(): Promise<
+  RescueMapOfflinePackage[]
+> {
+  const items = await listAllRescueOfflinePackages();
+  return items.filter(
+    (item) => item.incidentId === COLOMBIA_RESCUE_INCIDENT_ID,
   );
 }
 
@@ -266,7 +282,7 @@ export function estimateRescueOfflinePackageBytes(
 async function ensurePackageCapacity(
   item: RescueMapOfflinePackage,
 ): Promise<void> {
-  const existing = await listRescueOfflinePackages();
+  const existing = await listAllRescueOfflinePackages();
   const replacedSize =
     existing.find((candidate) => candidate.aoiId === item.aoiId)?.sizeBytes ?? 0;
   const existingBytes = existing.reduce(

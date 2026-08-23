@@ -8,9 +8,10 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { adminFetch, type FetchInit } from "@/src/shared/http/admin-fetch";
+import { scopedQueryKey } from "@/src/lib/query-scope";
 import type { SupplyBoard, SupplyEventRow } from "./types";
 
-const BOARD_KEY = ["hospital-supplies", "board"] as const;
+const BOARD_KEY = scopedQueryKey("hospital-supplies", "board");
 
 async function requestJson<T>(url: string, init?: FetchInit): Promise<T> {
   const response = await adminFetch(url, init);
@@ -39,7 +40,7 @@ export function useSupplyBoard() {
 
 export function useSupplyEvents(hospitalId: string | null) {
   return useQuery({
-    queryKey: ["hospital-supplies", "events", hospitalId],
+    queryKey: scopedQueryKey("hospital-supplies", "events", hospitalId),
     queryFn: () =>
       requestJson<{ items: SupplyEventRow[] }>(
         `/api/admin/hospital-supplies/${encodeURIComponent(hospitalId!)}/events`,
@@ -66,7 +67,7 @@ export function useSupplyMutations(hospitalId: string) {
     Promise.all([
       queryClient.invalidateQueries({ queryKey: BOARD_KEY }),
       queryClient.invalidateQueries({
-        queryKey: ["hospital-supplies", "events", hospitalId],
+        queryKey: scopedQueryKey("hospital-supplies", "events", hospitalId),
       }),
     ]);
   const clearError = (): void => setLastError(null);
