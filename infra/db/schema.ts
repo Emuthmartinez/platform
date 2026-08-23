@@ -31,10 +31,81 @@ import {
   primaryKey,
   index,
   uniqueIndex,
+  unique,
+  foreignKey,
+  check,
+  AnyPgColumn,
 } from "drizzle-orm/pg-core";
 
 // epoch-ms timestamp stored as BIGINT, surfaced as a JS number.
 const epochMs = (name: string) => bigint(name, { mode: "number" });
+
+/* ----------------------------------------------------------- organizations */
+// Accountable operator (KTD23). Seeded first tenant is Mallanet.org.
+export const organizations = pgTable("organizations", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  createdAt: epochMs("created_at").notNull(),
+});
+
+/* --------------------------------------------------------------- incidents */
+// Operational response period owned by one organization (KTD14, KTD23).
+// Unique (organization_id, id) is the FK target for every incident-scoped table.
+export const incidents = pgTable(
+  "incidents",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "restrict" }),
+    name: text("name").notNull(),
+    createdAt: epochMs("created_at").notNull(),
+  },
+  (t) => [unique("incidents_organization_id_id_unique").on(t.organizationId, t.id)],
+);
+
+/* ------------------------------------------------------------- deployments */
+// Canonical hostname → organization + active incident (KTD7 lookup source).
+// Hostname is stored already canonical: lowercase, no trailing dot.
+export const deployments = pgTable(
+  "deployments",
+  {
+    hostname: text("hostname").primaryKey(),
+    organizationId: text("organization_id").notNull(),
+    incidentId: text("incident_id").notNull(),
+    createdAt: epochMs("created_at").notNull(),
+  },
+  (t) => [
+    foreignKey({
+      name: "deployments_incident_ownership_fk",
+      columns: [t.organizationId, t.incidentId],
+      foreignColumns: [incidents.organizationId, incidents.id],
+    }).onDelete("restrict"),
+    check(
+      "deployments_hostname_canonical",
+      sql`${t.hostname} = lower(${t.hostname}) AND right(${t.hostname}, 1) <> '.'`,
+    ),
+  ],
+);
+
+/** Nullable expand columns. U8 tighten sets NOT NULL after backfill. */
+export function incidentOwnershipColumns() {
+  return {
+    organizationId: text("organization_id"),
+    incidentId: text("incident_id"),
+  };
+}
+
+export function incidentOwnershipFk(
+  tableName: string,
+  t: { organizationId: AnyPgColumn; incidentId: AnyPgColumn },
+) {
+  return foreignKey({
+    name: `${tableName}_incident_ownership_fk`,
+    columns: [t.organizationId, t.incidentId],
+    foreignColumns: [incidents.organizationId, incidents.id],
+  }).onDelete("restrict");
+}
 
 /* ------------------------------------------------------------------ reports */
 export const reports = pgTable(
@@ -59,6 +130,7 @@ export const reports = pgTable(
     // host and onto R2. NULL = not yet migrated. Lets the image-rehost worker
     // claim only un-migrated rows (FOR UPDATE SKIP LOCKED) and be re-runnable.
     photoMigratedAt: epochMs("photo_migrated_at"),
+    ...incidentOwnershipColumns(),
   },
   (t) => [
     index("idx_reports_created_at").on(t.createdAt.desc()),
@@ -67,6 +139,7 @@ export const reports = pgTable(
     index("idx_reports_photo_pending")
       .on(t.id)
       .where(sql`photo_migrated_at IS NULL AND photo IS NOT NULL`),
+    incidentOwnershipFk("reports", t),
   ],
 );
 
@@ -78,8 +151,12 @@ export const reportConfirmations = pgTable(
       .references(() => reports.id, { onDelete: "cascade" }),
     ipHash: text("ip_hash").notNull(),
     createdAt: epochMs("created_at").notNull(),
+    ...incidentOwnershipColumns(),
   },
-  (t) => [primaryKey({ columns: [t.reportId, t.ipHash] })],
+  (t) => [
+    primaryKey({ columns: [t.reportId, t.ipHash] }),
+    incidentOwnershipFk("report_confirmations", t),
+  ],
 );
 
 /* ----------------------------------------------------------- missing_persons */
@@ -119,6 +196,7 @@ export const missingPersons = pgTable(
     // See reports.photoMigratedAt. Covers BOTH base64 `photo` and external
     // `photo_external_url` being moved onto R2. NULL = pending.
     photoMigratedAt: epochMs("photo_migrated_at"),
+    ...incidentOwnershipColumns(),
   },
   (t) => [
     index("idx_missing_status_created").on(t.status, t.createdAt.desc()),
@@ -128,16 +206,13 @@ export const missingPersons = pgTable(
       .where(
         sql`photo_migrated_at IS NULL AND (photo IS NOT NULL OR photo_external_url IS NOT NULL)`,
       ),
-    // Árbitro del ON CONFLICT (source, external_id) de upsertExternalMissingBatch.
-    // Ya existe en prod creado out-of-band; lo declaramos para que un rebuild
-    // limpio lo tenga. Nombre fijado para coincidir con el de prod (no-op).
     uniqueIndex("missing_persons_source_external_id_idx")
       .on(t.source, t.externalId)
       .where(sql`external_id IS NOT NULL`),
-    // NO-único (ver comentario de tipo_documento): lookup del matcher.
     index("idx_missing_document_hash")
       .on(t.documentHash)
       .where(sql`document_hash IS NOT NULL`),
+    incidentOwnershipFk("missing_persons", t),
   ],
 );
 
@@ -149,11 +224,13 @@ export const missingPersonSuppressions = pgTable(
     externalId: text("external_id"),
     reason: text("reason").notNull(),
     createdAt: epochMs("created_at").notNull(),
+    ...incidentOwnershipColumns(),
   },
   (t) => [
     uniqueIndex("missing_person_suppressions_source_external_idx")
       .on(t.source, t.externalId)
       .where(sql`source IS NOT NULL AND external_id IS NOT NULL`),
+    incidentOwnershipFk("missing_person_suppressions", t),
   ],
 );
 
@@ -178,8 +255,12 @@ export const officialDeceasedLists = pgTable(
     createdBy: text("created_by"),
     createdAt: epochMs("created_at").notNull(),
     updatedAt: epochMs("updated_at").notNull(),
+    ...incidentOwnershipColumns(),
   },
-  (t) => [uniqueIndex("idx_official_deceased_lists_source_url").on(t.sourceUrl)],
+  (t) => [
+    uniqueIndex("idx_official_deceased_lists_source_url").on(t.sourceUrl),
+    incidentOwnershipFk("official_deceased_lists", t),
+  ],
 );
 
 export const officialDeceasedRecords = pgTable(
@@ -195,10 +276,12 @@ export const officialDeceasedRecords = pgTable(
     description: text("description").notNull().default(""),
     createdAt: epochMs("created_at").notNull(),
     updatedAt: epochMs("updated_at").notNull(),
+    ...incidentOwnershipColumns(),
   },
   (t) => [
     index("idx_official_deceased_records_list").on(t.listId, t.createdAt.desc()),
     index("idx_official_deceased_records_name").on(t.name),
+    incidentOwnershipFk("official_deceased_records", t),
   ],
 );
 
@@ -261,10 +344,12 @@ export const missingPets = pgTable(
      * worker que reclame filas pendientes (ver cabecera).
      */
     photoMigratedAt: epochMs("photo_migrated_at"),
+    ...incidentOwnershipColumns(),
   },
   (t) => [
     index("idx_pets_status_created").on(t.status, t.createdAt.desc()),
     index("idx_pets_map_coords").on(t.lat, t.lng),
+    incidentOwnershipFk("missing_pets", t),
   ],
 );
 
@@ -282,12 +367,14 @@ export const chatMessages = pgTable(
     // Nullable en prod: filas antiguas se rellenan con UPDATE en lib/chat.ts.
     threadBumpedAt: epochMs("thread_bumped_at"),
     createdAt: epochMs("created_at").notNull(),
+    ...incidentOwnershipColumns(),
     // Nota: prod conserva 3 columnas legado (reply_to_id/name/text) ya en
     // desuso (sustituidas por reply_to/reply_preview). Se omiten a propósito.
   },
   (t) => [
     index("idx_chat_thread_bumped").on(t.threadBumpedAt.desc()),
     index("idx_chat_reply").on(t.replyTo),
+    incidentOwnershipFk("chat_messages", t),
   ],
 );
 
@@ -306,6 +393,7 @@ export const hospitals = pgTable(
     priorityZone: text("priority_zone").notNull().default("P3"),
     isPriority: boolean("is_priority").notNull().default(false),
     createdAt: epochMs("created_at").notNull(),
+    ...incidentOwnershipColumns(),
   },
   (t) => [
     // Partial unique index: external_id unique WHERE NOT NULL.
@@ -313,6 +401,7 @@ export const hospitals = pgTable(
       .on(t.externalId)
       .where(sql`external_id IS NOT NULL`),
     index("idx_hospitals_state").on(t.state, t.priorityZone, t.name),
+    incidentOwnershipFk("hospitals", t),
   ],
 );
 
@@ -334,6 +423,7 @@ export const hospitalPatients = pgTable(
     documentHash: text("document_hash"),
     admittedAt: epochMs("admitted_at").notNull(),
     updatedAt: epochMs("updated_at").notNull(),
+    ...incidentOwnershipColumns(),
   },
   (t) => [
     index("idx_hospital_patients_hospital").on(
@@ -347,6 +437,7 @@ export const hospitalPatients = pgTable(
     uniqueIndex("idx_hospital_patients_document_hash_unique")
       .on(t.documentHash)
       .where(sql`document_hash IS NOT NULL`),
+    incidentOwnershipFk("hospital_patients", t),
   ],
 );
 
@@ -404,12 +495,14 @@ export const patientImports = pgTable(
     processedAt: epochMs("processed_at"),
     appliedAt: epochMs("applied_at"),
     updatedAt: epochMs("updated_at").notNull(),
+    ...incidentOwnershipColumns(),
   },
   (t) => [
     index("idx_patient_imports_status").on(t.status, t.createdAt.desc()),
     uniqueIndex("idx_patient_imports_actor_idempotency")
       .on(t.createdBy, t.idempotencyKeyHash)
       .where(sql`idempotency_key_hash IS NOT NULL`),
+    incidentOwnershipFk("patient_imports", t),
   ],
 );
 
@@ -455,13 +548,12 @@ export const patientImportRows = pgTable(
     patientId: text("patient_id"),
     createdAt: epochMs("created_at").notNull(),
     updatedAt: epochMs("updated_at").notNull(),
+    ...incidentOwnershipColumns(),
   },
   (t) => [
     index("idx_patient_import_rows_import").on(t.importId, t.rowIndex),
     index("idx_patient_import_rows_status").on(t.importId, t.rowStatus),
-    // Nota: NO indexamos (import_id, document_hash). La dedup intra-lote por
-    // documento se resuelve en memoria durante `processImport` (no hay query por
-    // esta combinación), así que el índice sería peso muerto.
+    incidentOwnershipFk("patient_import_rows", t),
   ],
 );
 
@@ -490,8 +582,12 @@ export const ocrCorrections = pgTable(
     // users.id del revisor. Atribución obligatoria (es una decisión humana).
     correctedBy: text("corrected_by").notNull(),
     correctedAt: epochMs("corrected_at").notNull(),
+    ...incidentOwnershipColumns(),
   },
-  (t) => [index("idx_ocr_corrections_row").on(t.importRowId)],
+  (t) => [
+    index("idx_ocr_corrections_row").on(t.importRowId),
+    incidentOwnershipFk("ocr_corrections", t),
+  ],
 );
 
 /* ------------------------------------------------------- hospital_supplies */
@@ -512,6 +608,7 @@ export const hospitalSupplyStatuses = pgTable(
     updatedBy: text("updated_by").notNull().default("equipo_operativo"),
     source: text("source").notNull().default("admin_panel"),
     createdAt: epochMs("created_at").notNull(),
+    ...incidentOwnershipColumns(),
   },
   (t) => [
     uniqueIndex("idx_hospital_supply_status_unique").on(
@@ -524,6 +621,7 @@ export const hospitalSupplyStatuses = pgTable(
       t.lastConfirmedAt,
     ),
     index("idx_hospital_supply_status_hospital").on(t.hospitalId),
+    incidentOwnershipFk("hospital_supply_statuses", t),
   ],
 );
 
@@ -547,6 +645,7 @@ export const hospitalSupplyNeeds = pgTable(
     source: text("source").notNull().default("admin_panel"),
     createdAt: epochMs("created_at").notNull(),
     updatedAt: epochMs("updated_at").notNull(),
+    ...incidentOwnershipColumns(),
   },
   (t) => [
     index("idx_hospital_supply_needs_active").on(
@@ -556,6 +655,7 @@ export const hospitalSupplyNeeds = pgTable(
       t.updatedAt.desc(),
     ),
     index("idx_hospital_supply_needs_category").on(t.category, t.status),
+    incidentOwnershipFk("hospital_supply_needs", t),
   ],
 );
 
@@ -575,6 +675,7 @@ export const hospitalSupplyHelpRequests = pgTable(
     restrictedNote: text("restricted_note").notNull().default(""),
     createdAt: epochMs("created_at").notNull(),
     updatedAt: epochMs("updated_at").notNull(),
+    ...incidentOwnershipColumns(),
   },
   (t) => [
     index("idx_hospital_supply_help_open").on(
@@ -583,6 +684,7 @@ export const hospitalSupplyHelpRequests = pgTable(
       t.createdAt.desc(),
     ),
     index("idx_hospital_supply_help_hospital").on(t.hospitalId),
+    incidentOwnershipFk("hospital_supply_help_requests", t),
   ],
 );
 
@@ -600,6 +702,7 @@ export const hospitalPocAssignments = pgTable(
     active: boolean("active").notNull().default(true),
     createdAt: epochMs("created_at").notNull(),
     updatedAt: epochMs("updated_at").notNull(),
+    ...incidentOwnershipColumns(),
   },
   (t) => [
     index("idx_hospital_poc_assignments_hospital").on(t.hospitalId, t.active),
@@ -608,6 +711,7 @@ export const hospitalPocAssignments = pgTable(
       t.accessTokenHash,
       t.active,
     ),
+    incidentOwnershipFk("hospital_poc_assignments", t),
   ],
 );
 
@@ -626,6 +730,7 @@ export const hospitalSupplyEvents = pgTable(
     source: text("source").notNull().default("admin_panel"),
     payload: jsonb("payload").notNull().default({}),
     createdAt: epochMs("created_at").notNull(),
+    ...incidentOwnershipColumns(),
   },
   (t) => [
     index("idx_hospital_supply_events_hospital").on(
@@ -633,6 +738,7 @@ export const hospitalSupplyEvents = pgTable(
       t.createdAt.desc(),
     ),
     index("idx_hospital_supply_events_entity").on(t.entityType, t.entityId),
+    incidentOwnershipFk("hospital_supply_events", t),
   ],
 );
 
@@ -649,15 +755,24 @@ export const donations = pgTable(
     // Ciclo de vida de la donación. Hoy la app nunca lo muta (insert-only), por
     // eso worker/tables.ts la trata como append-only ("ignore").
     status: text("status").notNull().default("intent"),
+    ...incidentOwnershipColumns(),
   },
-  (t) => [index("donations_created_at_idx").on(t.createdAt.desc())],
+  (t) => [
+    index("donations_created_at_idx").on(t.createdAt.desc()),
+    incidentOwnershipFk("donations", t),
+  ],
 );
 
 /* ------------------------------------------------------------ click_counters */
-export const clickCounters = pgTable("click_counters", {
-  key: text("key").primaryKey(),
-  count: integer("count").notNull().default(0),
-});
+export const clickCounters = pgTable(
+  "click_counters",
+  {
+    key: text("key").primaryKey(),
+    count: integer("count").notNull().default(0),
+    ...incidentOwnershipColumns(),
+  },
+  (t) => [incidentOwnershipFk("click_counters", t)],
+);
 
 export const clickCounterDedup = pgTable(
   "click_counter_dedup",
@@ -665,8 +780,12 @@ export const clickCounterDedup = pgTable(
     counterKey: text("counter_key").notNull(),
     ipHash: text("ip_hash").notNull(),
     createdAt: epochMs("created_at").notNull(),
+    ...incidentOwnershipColumns(),
   },
-  (t) => [primaryKey({ columns: [t.counterKey, t.ipHash] })],
+  (t) => [
+    primaryKey({ columns: [t.counterKey, t.ipHash] }),
+    incidentOwnershipFk("click_counter_dedup", t),
+  ],
 );
 
 /* ------------------------------------------------------------- geocode_cache */
@@ -727,10 +846,12 @@ export const contactMessages = pgTable(
     read: boolean("read").notNull().default(false),
     ipHash: text("ip_hash"),
     createdAt: epochMs("created_at").notNull(),
+    ...incidentOwnershipColumns(),
   },
   (t) => [
     index("contact_messages_created_at_idx").on(t.createdAt.desc()),
     index("contact_messages_unread_idx").on(t.read, t.createdAt.desc()),
+    incidentOwnershipFk("contact_messages", t),
   ],
 );
 
@@ -764,11 +885,13 @@ export const volunteers = pgTable(
     ipHash: text("ip_hash"),
     createdAt: epochMs("created_at").notNull(),
     updatedAt: epochMs("updated_at"),
+    ...incidentOwnershipColumns(),
   },
   (t) => [
     index("volunteers_created_at_idx").on(t.createdAt.desc()),
     index("volunteers_status_idx").on(t.status, t.createdAt.desc()),
     uniqueIndex("volunteers_code_unique").on(t.code),
+    incidentOwnershipFk("volunteers", t),
   ],
 );
 
@@ -787,10 +910,12 @@ export const volunteerCheckins = pgTable(
     note: text("note").notNull().default(""),
     photo: text("photo"),
     createdAt: epochMs("created_at").notNull(),
+    ...incidentOwnershipColumns(),
   },
   (t) => [
     index("volunteer_checkins_volunteer_idx").on(t.volunteerId, t.createdAt.desc()),
     index("volunteer_checkins_created_at_idx").on(t.createdAt.desc()),
+    incidentOwnershipFk("volunteer_checkins", t),
   ],
 );
 
@@ -816,8 +941,12 @@ export const volunteerTasks = pgTable(
     status: text("status").notNull().default("open"), // open | assigned | done | cancelled
     createdAt: epochMs("created_at").notNull(),
     updatedAt: epochMs("updated_at"),
+    ...incidentOwnershipColumns(),
   },
-  (t) => [index("volunteer_tasks_status_idx").on(t.status, t.createdAt.desc())],
+  (t) => [
+    index("volunteer_tasks_status_idx").on(t.status, t.createdAt.desc()),
+    incidentOwnershipFk("volunteer_tasks", t),
+  ],
 );
 
 /* ----------------------------------------------------- volunteer_assignments */
@@ -833,10 +962,12 @@ export const volunteerAssignments = pgTable(
     status: text("status").notNull().default("offered"), // offered | accepted | done | declined
     createdAt: epochMs("created_at").notNull(),
     updatedAt: epochMs("updated_at"),
+    ...incidentOwnershipColumns(),
   },
   (t) => [
     index("volunteer_assignments_task_idx").on(t.taskId),
     index("volunteer_assignments_volunteer_idx").on(t.volunteerId),
+    incidentOwnershipFk("volunteer_assignments", t),
   ],
 );
 
@@ -855,63 +986,80 @@ export const dataDeletionRequests = pgTable(
     ipHash: text("ip_hash"),
     createdAt: epochMs("created_at").notNull(),
     updatedAt: epochMs("updated_at").notNull(),
+    ...incidentOwnershipColumns(),
   },
   (t) => [
     index("ddr_created_at_idx").on(t.createdAt.desc()),
     index("ddr_status_idx").on(t.status, t.createdAt.desc()),
+    incidentOwnershipFk("data_deletion_requests", t),
   ],
 );
 
 /* ----------------------------------------------------- analytics_events */
 // Eventos de analítica. Presente en prod; sin acceso desde el código de la
 // app (legado/externo). Se documenta para que el esquema cubra prod.
-export const analyticsEvents = pgTable("analytics_events", {
-  id: text("id").primaryKey(),
-  sessionId: text("session_id").notNull(),
-  type: text("type").notNull(),
-  path: text("path").notNull(),
-  label: text("label").notNull().default(""),
-  referrer: text("referrer").notNull().default(""),
-  userAgent: text("user_agent").notNull().default(""),
-  screen: text("screen").notNull().default(""),
-  language: text("language").notNull().default(""),
-  metadata: jsonb("metadata").notNull().default({}),
-  createdAt: epochMs("created_at").notNull(),
-});
+export const analyticsEvents = pgTable(
+  "analytics_events",
+  {
+    id: text("id").primaryKey(),
+    sessionId: text("session_id").notNull(),
+    type: text("type").notNull(),
+    path: text("path").notNull(),
+    label: text("label").notNull().default(""),
+    referrer: text("referrer").notNull().default(""),
+    userAgent: text("user_agent").notNull().default(""),
+    screen: text("screen").notNull().default(""),
+    language: text("language").notNull().default(""),
+    metadata: jsonb("metadata").notNull().default({}),
+    createdAt: epochMs("created_at").notNull(),
+    ...incidentOwnershipColumns(),
+  },
+  (t) => [incidentOwnershipFk("analytics_events", t)],
+);
 
 /* ---------------------------------------------------- damage_candidates */
 // Candidatos de daño estructural. Presente en prod; legado/externo.
-export const damageCandidates = pgTable("damage_candidates", {
-  id: text("id").primaryKey(),
-  buildingId: text("building_id").notNull(),
-  name: text("name").notNull().default(""),
-  lat: doublePrecision("lat").notNull(),
-  lng: doublePrecision("lng").notNull(),
-  damageLevel: text("damage_level").notNull(),
-  confidence: doublePrecision("confidence").notNull().default(0),
-  reviewStatus: text("review_status").notNull().default("needs_review"),
-  sourceBefore: text("source_before").notNull().default(""),
-  sourceAfter: text("source_after").notNull().default(""),
-  sourceUrl: text("source_url").notNull().default(""),
-  notes: text("notes").notNull().default(""),
-  createdAt: epochMs("created_at").notNull(),
-  updatedAt: epochMs("updated_at").notNull(),
-});
+export const damageCandidates = pgTable(
+  "damage_candidates",
+  {
+    id: text("id").primaryKey(),
+    buildingId: text("building_id").notNull(),
+    name: text("name").notNull().default(""),
+    lat: doublePrecision("lat").notNull(),
+    lng: doublePrecision("lng").notNull(),
+    damageLevel: text("damage_level").notNull(),
+    confidence: doublePrecision("confidence").notNull().default(0),
+    reviewStatus: text("review_status").notNull().default("needs_review"),
+    sourceBefore: text("source_before").notNull().default(""),
+    sourceAfter: text("source_after").notNull().default(""),
+    sourceUrl: text("source_url").notNull().default(""),
+    notes: text("notes").notNull().default(""),
+    createdAt: epochMs("created_at").notNull(),
+    updatedAt: epochMs("updated_at").notNull(),
+    ...incidentOwnershipColumns(),
+  },
+  (t) => [incidentOwnershipFk("damage_candidates", t)],
+);
 
 /* ------------------------------------------------- unidentified_persons */
 // Personas no identificadas. Presente en prod; legado/externo.
-export const unidentifiedPersons = pgTable("unidentified_persons", {
-  id: text("id").primaryKey(),
-  status: text("status").notNull().default("alive"),
-  name: text("name").notNull().default(""),
-  surname: text("surname").notNull().default(""),
-  locationFound: text("location_found").notNull().default(""),
-  description: text("description").notNull().default(""),
-  contactName: text("contact_name").notNull().default(""),
-  contactPhone: text("contact_phone").notNull().default(""),
-  photo: text("photo"),
-  createdAt: epochMs("created_at").notNull(),
-});
+export const unidentifiedPersons = pgTable(
+  "unidentified_persons",
+  {
+    id: text("id").primaryKey(),
+    status: text("status").notNull().default("alive"),
+    name: text("name").notNull().default(""),
+    surname: text("surname").notNull().default(""),
+    locationFound: text("location_found").notNull().default(""),
+    description: text("description").notNull().default(""),
+    contactName: text("contact_name").notNull().default(""),
+    contactPhone: text("contact_phone").notNull().default(""),
+    photo: text("photo"),
+    createdAt: epochMs("created_at").notNull(),
+    ...incidentOwnershipColumns(),
+  },
+  (t) => [incidentOwnershipFk("unidentified_persons", t)],
+);
 
 /* =====================================================================
  * Federación opcional con un hub central externo (ver ENABLE_HUB_FEDERATION).
@@ -944,6 +1092,7 @@ const hubCommon = {
   hubCreatedAt: text("hub_created_at"), // created_at del hub (ISO, tal cual)
   ingestedAt: epochMs("ingested_at").notNull(),
   updatedAt: epochMs("updated_at").notNull(),
+  ...incidentOwnershipColumns(),
 };
 
 // Columnas de imagen compartidas (solo en los tipos con foto).
@@ -970,6 +1119,7 @@ export const hubMissingPersons = pgTable(
     index("idx_hub_missing_photo_pending")
       .on(t.id)
       .where(sql`photo_migrated_at IS NULL AND photo_external_url IS NOT NULL`),
+    incidentOwnershipFk("hub_missing_persons", t),
   ],
 );
 
@@ -986,6 +1136,7 @@ export const hubCheckins = pgTable(
   (t) => [
     uniqueIndex("idx_hub_checkins_hubid").on(t.hubId),
     index("idx_hub_checkins_source").on(t.source),
+    incidentOwnershipFk("hub_checkins", t),
   ],
 );
 
@@ -1002,6 +1153,7 @@ export const hubHelpRequests = pgTable(
   (t) => [
     uniqueIndex("idx_hub_helpreq_hubid").on(t.hubId),
     index("idx_hub_helpreq_source").on(t.source),
+    incidentOwnershipFk("hub_help_requests", t),
   ],
 );
 
@@ -1017,6 +1169,7 @@ export const hubHelpOffers = pgTable(
   (t) => [
     uniqueIndex("idx_hub_helpoffer_hubid").on(t.hubId),
     index("idx_hub_helpoffer_source").on(t.source),
+    incidentOwnershipFk("hub_help_offers", t),
   ],
 );
 
@@ -1033,18 +1186,24 @@ export const hubDamagedBuildings = pgTable(
   (t) => [
     uniqueIndex("idx_hub_damaged_hubid").on(t.hubId),
     index("idx_hub_damaged_source").on(t.source),
+    incidentOwnershipFk("hub_damaged_buildings", t),
   ],
 );
 
 /* ------------------------------------------------------- hub_sync_state */
 // Cursor de paginación por tipo del hub (created_at|id). Igual que sync_state
 // pero para la federación: el backfill/incremental reanudan desde aquí.
-export const hubSyncState = pgTable("hub_sync_state", {
-  type: text("type").primaryKey(), // missing_person, checkin, ...
-  cursor: text("cursor"), // último next_cursor visto (null = desde el inicio)
-  lastRunAt: epochMs("last_run_at"),
-  cycleCompletedAt: epochMs("cycle_completed_at"),
-});
+export const hubSyncState = pgTable(
+  "hub_sync_state",
+  {
+    type: text("type").primaryKey(),
+    cursor: text("cursor"),
+    lastRunAt: epochMs("last_run_at"),
+    cycleCompletedAt: epochMs("cycle_completed_at"),
+    ...incidentOwnershipColumns(),
+  },
+  (t) => [incidentOwnershipFk("hub_sync_state", t)],
+);
 
 /* ============================================================================
  * AUTH / RBAC — superficie autenticada `api/public/*` (integraciones + admin)
@@ -1222,13 +1381,25 @@ export const auditLog = pgTable(
     targetType: text("target_type"), // "report", "user", "role", ...
     targetId: text("target_id"),
     metadata: jsonb("metadata"),
-    ipHash: text("ip_hash"), // IP hasheada (privacidad), nunca cruda
+    ipHash: text("ip_hash"),
     createdAt: epochMs("created_at").notNull(),
+    scopeType: text("scope_type"),
+    ...incidentOwnershipColumns(),
   },
   (t) => [
     index("idx_audit_created").on(t.createdAt.desc()),
     index("idx_audit_actor").on(t.actorUserId),
     index("idx_audit_target").on(t.targetType, t.targetId),
+    incidentOwnershipFk("audit_log", t),
+    check(
+      "audit_log_scope_ids",
+      sql`(
+        (${t.scopeType} IS NULL AND ${t.organizationId} IS NULL AND ${t.incidentId} IS NULL)
+        OR (${t.scopeType} = 'global' AND ${t.organizationId} IS NULL AND ${t.incidentId} IS NULL)
+        OR (${t.scopeType} = 'organization' AND ${t.organizationId} IS NOT NULL AND ${t.incidentId} IS NULL)
+        OR (${t.scopeType} = 'incident' AND ${t.organizationId} IS NOT NULL AND ${t.incidentId} IS NOT NULL)
+      )`,
+    ),
   ],
 );
 
@@ -1281,11 +1452,13 @@ export const apiKeys = pgTable(
     lastUsedAt: epochMs("last_used_at"), // se actualiza fire-and-forget en cada uso
     expiresAt: epochMs("expires_at"), // NULL = sin expiración
     revokedAt: epochMs("revoked_at"), // NULL = activa (soft delete)
-    revokedBy: text("revoked_by"), // user.id que la revocó (self o admin)
+    revokedBy: text("revoked_by"),
+    ...incidentOwnershipColumns(),
   },
   (t) => [
-    uniqueIndex("idx_api_keys_hash").on(t.keyHash), // lookup O(1) en auth
-    index("idx_api_keys_user").on(t.userId), // listar "mis llaves"
+    uniqueIndex("idx_api_keys_hash").on(t.keyHash),
+    index("idx_api_keys_user").on(t.userId),
+    incidentOwnershipFk("api_keys", t),
   ],
 );
 
@@ -1310,10 +1483,12 @@ export const hubCredentials = pgTable(
     lastRotatedAt: epochMs("last_rotated_at"), // si se rota la password
     revokedAt: epochMs("revoked_at"), // NULL = activa (soft delete)
     revokedBy: text("revoked_by"),
+    ...incidentOwnershipColumns(),
   },
   (t) => [
-    uniqueIndex("idx_hub_credentials_role").on(t.pgRole), // un rol por credencial
+    uniqueIndex("idx_hub_credentials_role").on(t.pgRole),
     index("idx_hub_credentials_active").on(t.revokedAt),
+    incidentOwnershipFk("hub_credentials", t),
   ],
 );
 
@@ -1338,9 +1513,11 @@ export const personRecords = pgTable(
     // Tombstone (U10): el registro fuente fue borrado; el PRN se conserva y
     // resuelve a "registro eliminado" en vez de a un 500.
     removedAt: epochMs("removed_at"),
+    ...incidentOwnershipColumns(),
   },
   (t) => [
     uniqueIndex("idx_person_records_record").on(t.recordType, t.recordId),
+    incidentOwnershipFk("person_records", t),
   ],
 );
 
@@ -1366,13 +1543,12 @@ export const personLinks = pgTable(
     method: text("method").notNull(),
     matcherVersion: text("matcher_version"),
     proposedAt: epochMs("proposed_at").notNull(),
+    ...incidentOwnershipColumns(),
   },
   (t) => [
     uniqueIndex("idx_person_links_pair").on(t.prnA, t.prnB),
     index("idx_person_links_queue").on(t.status, t.proposedAt),
-    // CHECK (prn_a < prn_b) vive en el SQL de la migración (0004): drizzle-kit
-    // 0.27 no sabe serializar check() y aborta el diff. Si se sube drizzle-kit
-    // (>=0.30), mover el CHECK aquí como check("person_links_pair_ordered").
+    incidentOwnershipFk("person_links", t),
   ],
 );
 
@@ -1393,20 +1569,28 @@ export const personLinkDecisions = pgTable(
     // users.id — atribución obligatoria (R12).
     decidedBy: text("decided_by").notNull(),
     decidedAt: epochMs("decided_at").notNull(),
+    ...incidentOwnershipColumns(),
   },
-  (t) => [index("idx_person_link_decisions_link").on(t.linkId, t.decidedAt)],
+  (t) => [
+    index("idx_person_link_decisions_link").on(t.linkId, t.decidedAt),
+    incidentOwnershipFk("person_link_decisions", t),
+  ],
 );
 
 /* ------------------------------------------------------------ person_clusters */
 // La "persona": componente conexo sobre links CONFIRMADOS (solo). La membresía
 // materializada la converge recomputeClusterFor (5 sub-pasos, KTD3 del plan);
 // el cron de reconciliación verifica conectividad y repara divergencias.
-export const personClusters = pgTable("person_clusters", {
-  id: text("id").primaryKey(),
-  // Derivado: 'reported_missing' | 'located_hospital' (mínimo de fase 1).
-  status: text("status").notNull().default("reported_missing"),
-  createdAt: epochMs("created_at").notNull(),
-});
+export const personClusters = pgTable(
+  "person_clusters",
+  {
+    id: text("id").primaryKey(),
+    status: text("status").notNull().default("reported_missing"),
+    createdAt: epochMs("created_at").notNull(),
+    ...incidentOwnershipColumns(),
+  },
+  (t) => [incidentOwnershipFk("person_clusters", t)],
+);
 
 export const personClusterMembers = pgTable(
   "person_cluster_members",
@@ -1419,14 +1603,14 @@ export const personClusterMembers = pgTable(
     removedAt: epochMs("removed_at"),
     // users.id | 'system' (recompute).
     addedBy: text("added_by").notNull(),
+    ...incidentOwnershipColumns(),
   },
   (t) => [
-    // Un registro vive en ≤1 cluster VIVO. Índice parcial = punto de
-    // serialización de recomputes concurrentes (ON CONFLICT DO NOTHING + re-read).
     uniqueIndex("idx_person_cluster_members_live")
       .on(t.prn)
       .where(sql`removed_at IS NULL`),
     index("idx_person_cluster_members_cluster").on(t.clusterId, t.removedAt),
+    incidentOwnershipFk("person_cluster_members", t),
   ],
 );
 
@@ -1454,14 +1638,14 @@ export const recordStatusSignals = pgTable(
     decidedBy: text("decided_by"),
     decidedAt: epochMs("decided_at"),
     decisionNote: text("decision_note"),
+    ...incidentOwnershipColumns(),
   },
   (t) => [
-    // Idempotencia DB-enforced (un retry del socio no apila señales): un claim
-    // pendiente por (prn, kind, claimed_status).
     uniqueIndex("idx_record_status_signals_pending")
       .on(t.prn, t.kind, t.claimedStatus)
       .where(sql`status = 'pending'`),
     index("idx_record_status_signals_queue").on(t.status, t.createdAt),
+    incidentOwnershipFk("record_status_signals", t),
   ],
 );
 
@@ -1507,6 +1691,12 @@ export const failedSubmissions = pgTable(
     createdAt: epochMs("created_at").notNull(),
     // NULL = pendiente de reinyectar. Se sella al reprocesar.
     replayedAt: epochMs("replayed_at"),
+    // Tenant columns live beside the JSON (KTD10). They are the only additive
+    // columns this table accepts: retention and deletion must be incident-scoped.
+    ...incidentOwnershipColumns(),
   },
-  (t) => [index("idx_failed_submissions_pending").on(t.replayedAt, t.createdAt)],
+  (t) => [
+    index("idx_failed_submissions_pending").on(t.replayedAt, t.createdAt),
+    incidentOwnershipFk("failed_submissions", t),
+  ],
 );

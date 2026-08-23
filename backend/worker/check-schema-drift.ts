@@ -48,6 +48,7 @@ import { getTableConfig, PgTable } from "drizzle-orm/pg-core";
 import { is } from "drizzle-orm";
 import { readFileSync } from "node:fs";
 import * as schema from "../../infra/db/schema.js";
+import * as campaignSchema from "../../infra/db/schema-campaign.js";
 
 const JOURNAL_PATH =
   process.env.MIGRATIONS_JOURNAL ||
@@ -58,10 +59,10 @@ interface Expected {
   columns: string[];
 }
 
-/** Lo que el CODIGO espera: se deriva del propio `schema.ts`, no de una lista aparte. */
+/** Lo que el CODIGO espera: `schema.ts` plus `schema-campaign.ts`. */
 function expectedFromSchema(): Expected[] {
   const out: Expected[] = [];
-  for (const value of Object.values(schema)) {
+  for (const value of Object.values({ ...schema, ...campaignSchema })) {
     if (!is(value, PgTable)) continue;
     const cfg = getTableConfig(value as PgTable);
     out.push({

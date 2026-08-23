@@ -7,6 +7,7 @@ import {
   jsonb,
   index,
 } from "drizzle-orm/pg-core";
+import { incidentOwnershipColumns, incidentOwnershipFk } from "./schema";
 
 const epochMs = (name: string) => bigint(name, { mode: "number" });
 
@@ -45,10 +46,12 @@ export const campaignSites = pgTable(
     note: text("note").notNull().default(""),
     createdAt: epochMs("created_at").notNull(),
     updatedAt: epochMs("updated_at"),
+    ...incidentOwnershipColumns(),
   },
   (t) => [
     index("campaign_sites_campaign_idx").on(t.campaign, t.status),
     index("campaign_sites_city_idx").on(t.city),
+    incidentOwnershipFk("campaign_sites", t),
   ],
 );
 
@@ -64,10 +67,12 @@ export const campaignSiteStewards = pgTable(
     active: boolean("active").notNull().default(true),
     createdAt: epochMs("created_at").notNull(),
     updatedAt: epochMs("updated_at"),
+    ...incidentOwnershipColumns(),
   },
   (t) => [
     index("campaign_site_stewards_site_idx").on(t.siteId, t.active),
     index("campaign_site_stewards_token_idx").on(t.accessTokenHash, t.active),
+    incidentOwnershipFk("campaign_site_stewards", t),
   ],
 );
 
@@ -96,10 +101,12 @@ export const materialPledges = pgTable(
     ipHash: text("ip_hash"),
     createdAt: epochMs("created_at").notNull(),
     updatedAt: epochMs("updated_at"),
+    ...incidentOwnershipColumns(),
   },
   (t) => [
     index("material_pledges_campaign_idx").on(t.campaign, t.status),
     index("material_pledges_site_idx").on(t.siteId, t.status),
+    incidentOwnershipFk("material_pledges", t),
   ],
 );
 
@@ -120,10 +127,12 @@ export const materialReceipts = pgTable(
     photo: text("photo"),
     receivedAt: epochMs("received_at").notNull(),
     createdAt: epochMs("created_at").notNull(),
+    ...incidentOwnershipColumns(),
   },
   (t) => [
     index("material_receipts_site_idx").on(t.siteId, t.receivedAt),
     index("material_receipts_pledge_idx").on(t.pledgeId),
+    incidentOwnershipFk("material_receipts", t),
   ],
 );
 
@@ -147,6 +156,10 @@ export const materialShipments = pgTable(
     arrivedAt: epochMs("arrived_at"),
     createdAt: epochMs("created_at").notNull(),
     updatedAt: epochMs("updated_at"),
+    ...incidentOwnershipColumns(),
   },
-  (t) => [index("material_shipments_campaign_idx").on(t.campaign, t.status)],
+  (t) => [
+    index("material_shipments_campaign_idx").on(t.campaign, t.status),
+    incidentOwnershipFk("material_shipments", t),
+  ],
 );

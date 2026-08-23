@@ -99,6 +99,69 @@
       "when": 1786913000001,
       "tag": "0013_campaign_photos",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1787451907599,
+      "tag": "0014_platform_core",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1787452103260,
+      "tag": "0015_reports_tenant",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1787452187887,
+      "tag": "0016_volunteers_tenant",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1787452246624,
+      "tag": "0017_hospitals_tenant",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1787452349927,
+      "tag": "0018_family_search_tenant",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1787452421992,
+      "tag": "0019_hub_tenant",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1787452503234,
+      "tag": "0020_ops_tenant",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1787452539004,
+      "tag": "0021_audit_log_scope",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1787452600000,
+      "tag": "0022_campaign_tenant",
+      "breakpoints": true
     }
   ]
 }

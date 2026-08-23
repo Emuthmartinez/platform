@@ -7,6 +7,8 @@ This directory records how this repository relates to Colombia production.
 | `colombia-upstream.json` | Immutable clone source (URL, SHA, fetch time) |
 | `colombia-sync-ledger.md` | Created in U19; one row per imported Colombia `main` commit |
 | `rls-feasibility.md` | KTD5 probe evidence (U6) |
+| `isolated-resources.md` | Isolated Neon + Doppler (not Colombia) |
+| `table-classification.md` | KTD10 table scopes (U7) |
 
 ## Isolation
 

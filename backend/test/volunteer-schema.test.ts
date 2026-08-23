@@ -38,6 +38,8 @@ describe("volunteer schema (Neon-aligned)", () => {
         "own_vehicle",
         "source",
         "code",
+        "organization_id",
+        "incident_id",
       ].sort(),
     );
   });
@@ -60,6 +62,8 @@ describe("volunteer schema (Neon-aligned)", () => {
         "status",
         "created_at",
         "updated_at",
+        "organization_id",
+        "incident_id",
       ].sort(),
     );
   });
@@ -74,6 +78,8 @@ describe("volunteer schema (Neon-aligned)", () => {
         "status",
         "created_at",
         "updated_at",
+        "organization_id",
+        "incident_id",
       ].sort(),
     );
   });

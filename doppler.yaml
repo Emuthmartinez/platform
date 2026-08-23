@@ -1,0 +1,3 @@
+setup:
+  project: mallanet-platform
+  config: stg
