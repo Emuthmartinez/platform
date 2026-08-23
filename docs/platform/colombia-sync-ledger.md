@@ -6,4 +6,6 @@ this clone has absorbed.
 
 | Source SHA | Fetched | Disposition | Platform SHA | Notes |
 | --- | --- | --- | --- | --- |
-| `83b7c1669fda091f092edcb3f470a1e81f5669ba` | 2026-08-23T01:43:58Z | clone bootstrap | `83b7c1669fda091f092edcb3f470a1e81f5669ba` | Colombia `origin/main` PR #53. Isolation commit follows on this repo. |
+| `83b7c1669fda091f092edcb3f470a1e81f5669ba` | 2026-08-23T01:43:58Z | clone bootstrap | `83b7c1669fda091f092edcb3f470a1e81f5669ba` | Colombia `origin/main` PR #53. |
+| — | 2026-08-23 | platform isolation | `5934084` | Deploy workflows gated; no Colombia secrets. |
+| — | 2026-08-23 | drizzle-kit 0.31.10 | `0babcfb` | `generate` empty. |
