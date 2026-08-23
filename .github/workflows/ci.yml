@@ -78,6 +78,10 @@ jobs:
         working-directory: backend
         run: npm run check:migration-journal
 
+      - name: Table classification (KTD10)
+        working-directory: backend
+        run: npm run check:table-classification
+
       - name: Build
         working-directory: backend
         run: npm run build
