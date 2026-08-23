@@ -1,3 +1,5 @@
+import { incidentCacheTag } from "@/lib/incident-cache-tags";
+
 // Helper de fetch server-side hacia el backend Express. Mantiene el frontend
 // como UI pura: nada de acceso directo a DB. SSR siempre fresco (no-store).
 //
@@ -40,7 +42,7 @@ export async function serverApiGetCached<T>(
   revalidateSeconds: number,
 ): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
-    next: { revalidate: revalidateSeconds },
+    next: { revalidate: revalidateSeconds, tags: [incidentCacheTag()] },
     headers: trustedHostnameHeaders(),
   });
   if (!res.ok) {

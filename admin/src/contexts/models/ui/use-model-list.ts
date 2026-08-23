@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ModelRow } from "../application/models-gateway";
 import { adminFetch } from "../../../shared/http/admin-fetch";
+import { scopedQueryKey } from "@/src/lib/query-scope";
 
 /**
  * Hook de listado de un modelo vía el BFF same-origin (/api/models/<path>).
@@ -38,9 +39,13 @@ async function mutateModel(
   return response.json();
 }
 
+export function modelQueryKey(path: string) {
+  return scopedQueryKey("model", path);
+}
+
 export function useModelList(path: string) {
   return useQuery({
-    queryKey: ["model", path],
+    queryKey: modelQueryKey(path),
     queryFn: () => fetchModel(path),
     refetchInterval: 30_000,
     refetchIntervalInBackground: false,
@@ -55,6 +60,6 @@ export function useModelMutation(path: string) {
       id?: string;
       input?: ModelRow;
     }) => mutateModel(path, operation.method, operation.id, operation.input),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["model", path] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: modelQueryKey(path) }),
   });
 }

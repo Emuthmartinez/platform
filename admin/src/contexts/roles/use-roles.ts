@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { adminFetch } from "@/src/shared/http/admin-fetch";
+import { scopedQueryKey } from "@/src/lib/query-scope";
 
 export interface Role {
   id: string;
@@ -25,8 +26,8 @@ export interface CreateRoleInput {
   capabilities: string[];
 }
 
-const ROLES_KEY = ["admin", "roles"] as const;
-const CAPS_KEY = ["admin", "capabilities"] as const;
+const ROLES_KEY = scopedQueryKey("admin", "roles");
+const CAPS_KEY = scopedQueryKey("admin", "capabilities");
 
 async function getJson<T>(url: string): Promise<T> {
   const res = await adminFetch(url);

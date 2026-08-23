@@ -29,14 +29,20 @@ import {
   type RescueMapMode,
 } from "@/lib/rescue-map";
 import {
+  COLOMBIA_RESCUE_DATA_PATHS,
+} from "@/lib/tenant";
+import {
+  RESCUE_VIEW_STATE_KEY,
+  RESCUE_VIEW_STATE_LEGACY_KEY,
+} from "@/lib/browser-storage-registry";
+import { migrateLegacyLocalStorage } from "@/lib/incident-storage";
+import {
   loadRescueSnapshot,
   saveRescueSnapshot,
 } from "@/lib/rescue-map-offline";
 
-const INCIDENT_PATH =
-  "/data/incidents/colombia-2026-08-10-san-jose-del-palmar.json";
-const MAPPING_PATH = "/data/incidents/colombia-2026-08-10-emsr916-map.json";
-const VIEW_STATE_KEY = "terremoto-colombia:rescue-map-view:v1";
+const INCIDENT_PATH = COLOMBIA_RESCUE_DATA_PATHS[0];
+const MAPPING_PATH = COLOMBIA_RESCUE_DATA_PATHS[1];
 const OFFLINE_REFRESH_INTERVAL_MS = 5_000;
 
 const RescueMapCanvas = dynamic(() => import("./RescueMapCanvas"), {
@@ -121,7 +127,11 @@ export default function RescueMapExperience({
   useEffect(() => {
     const restoreViewState = () => {
       try {
-        const raw = window.localStorage.getItem(VIEW_STATE_KEY);
+        migrateLegacyLocalStorage(
+          RESCUE_VIEW_STATE_LEGACY_KEY,
+          RESCUE_VIEW_STATE_KEY,
+        );
+        const raw = window.localStorage.getItem(RESCUE_VIEW_STATE_KEY);
         if (raw) {
           const saved = JSON.parse(raw) as {
             mode?: unknown;
@@ -156,7 +166,7 @@ export default function RescueMapExperience({
     if (!viewStateLoaded) return;
     try {
       window.localStorage.setItem(
-        VIEW_STATE_KEY,
+        RESCUE_VIEW_STATE_KEY,
         JSON.stringify({ mode, selectedAoiId }),
       );
     } catch {

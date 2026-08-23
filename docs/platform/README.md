@@ -9,6 +9,8 @@ This directory records how this repository relates to Colombia production.
 | `rls-feasibility.md` | KTD5 probe evidence (U6) |
 | `isolated-resources.md` | Isolated Neon + Doppler (not Colombia) |
 | `table-classification.md` | KTD10 table scopes (U7) |
+| `browser-storage-registry.md` | IndexedDB / localStorage / SW cache inventory (U20) |
+| `cache-registry.md` | Browser, SW, and Next cache surfaces (U20) |
 
 ## Isolation
 

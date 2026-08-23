@@ -30,12 +30,59 @@
 // personas en base). Ver networkFirst: ahora revalida en segundo plano.
 // v9: añade el shell y los datos estáticos de /mapa-de-rescate, con un cache
 // separado y timestamp. No intercepta ni almacena tiles de OSM/Esri.
-const CACHE_VERSION = "v9";
-const STATIC_CACHE = `static-${CACHE_VERSION}`;
-const PHOTO_CACHE = `photos-${CACHE_VERSION}`;
-const API_CACHE = `api-${CACHE_VERSION}`;
-const HTML_CACHE = `html-${CACHE_VERSION}`;
-const RESCUE_DATA_CACHE = `rescue-data-${CACHE_VERSION}`;
+importScripts("/sw-config.js");
+
+const CFG = self.__MALLANET_SW_CONFIG || {
+  cacheEpoch: 0,
+  organizationId: "org_mallanet",
+  incidentId: "inc_terremoto_colombia_2026",
+  buildSha: "dev",
+  cachePrefix: "mallanet-",
+  cacheNames: {
+    static: "mallanet-e0-org_mallanet-inc_terremoto_colombia_2026-static",
+    photos: "mallanet-e0-org_mallanet-inc_terremoto_colombia_2026-photos",
+    api: "mallanet-e0-org_mallanet-inc_terremoto_colombia_2026-api",
+    html: "mallanet-e0-org_mallanet-inc_terremoto_colombia_2026-html",
+    rescue: "mallanet-e0-org_mallanet-inc_terremoto_colombia_2026-rescue",
+  },
+  previousCacheNames: [
+    "static-v9",
+    "photos-v9",
+    "api-v9",
+    "html-v9",
+    "rescue-data-v9",
+  ],
+  rescueDataPaths: [
+    "/data/incidents/colombia-2026-08-10-san-jose-del-palmar.json",
+    "/data/incidents/colombia-2026-08-10-emsr916-map.json",
+  ],
+  publicJsonPathPrefixes: [
+    "/api/missing",
+    "/api/deceased",
+    "/api/pets",
+    "/api/reports",
+    "/api/hospitals",
+    "/api/earthquakes",
+    "/api/donations",
+    "/api/acopio",
+    "/api/hub",
+    "/api/stats/psychology-help",
+  ],
+  publicJsonDenySubstrings: ["/patients", "/chat", "/photo"],
+  privilegedHeaderNames: [
+    "authorization",
+    "cookie",
+    "x-admin-token",
+    "x-api-key",
+    "x-incident-override",
+  ],
+};
+
+const STATIC_CACHE = CFG.cacheNames.static;
+const PHOTO_CACHE = CFG.cacheNames.photos;
+const API_CACHE = CFG.cacheNames.api;
+const HTML_CACHE = CFG.cacheNames.html;
+const RESCUE_DATA_CACHE = CFG.cacheNames.rescue;
 
 const KEEP_CACHES = new Set([
   STATIC_CACHE,
@@ -43,6 +90,7 @@ const KEEP_CACHES = new Set([
   API_CACHE,
   HTML_CACHE,
   RESCUE_DATA_CACHE,
+  ...CFG.previousCacheNames,
 ]);
 
 const CORE_ASSETS = [
@@ -59,10 +107,7 @@ const CORE_ASSETS = [
   "/mapa-de-rescate.webmanifest",
 ];
 const CORE_PAGES = ["/", "/privacidad", "/mapa-de-rescate"];
-const RESCUE_DATA_PATHS = [
-  "/data/incidents/colombia-2026-08-10-san-jose-del-palmar.json",
-  "/data/incidents/colombia-2026-08-10-emsr916-map.json",
-];
+const RESCUE_DATA_PATHS = CFG.rescueDataPaths;
 // El precache de snapshots `/api/...` se eliminó al mover el backend a
 // `api.<dominio>` (cross-origin): `cache.addAll` con una URL cross-origin sin
 // CORS configurado falla y aborta el install. El `networkFirst` posterior se
@@ -156,12 +201,32 @@ self.addEventListener("activate", (event) => {
       .keys()
       .then((keys) =>
         Promise.all(
-          keys.map((key) => (KEEP_CACHES.has(key) ? null : caches.delete(key))),
+          keys.map((key) => {
+            if (KEEP_CACHES.has(key)) return null;
+            if (!key.startsWith(CFG.cachePrefix)) return null;
+            return caches.delete(key);
+          }),
         ),
       )
       .then(() => self.clients.claim()),
   );
 });
+
+function isPrivilegedRequest(request) {
+  return CFG.privilegedHeaderNames.some((name) => {
+    const value = request.headers.get(name);
+    return typeof value === "string" && value.trim().length > 0;
+  });
+}
+
+function isPublicJsonPath(pathname) {
+  if (CFG.publicJsonDenySubstrings.some((part) => pathname.includes(part))) {
+    return false;
+  }
+  return CFG.publicJsonPathPrefixes.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
+}
 
 function isPhotoApi(url) {
   return (
@@ -411,11 +476,18 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // 3. APIs JSON: network-first con cache de respaldo (incluye el host API
-  //    cross-origin, ver `isApiRequest`). El respaldo va MARCADO como stale y
-  //    dispara revalidación en segundo plano — ver networkFirst.
-  if (apiRequest) {
+  // 3. APIs JSON anónimas de la allowlist: network-first con cache de respaldo.
+  //    No interceptamos chat, patients, fotos JSON, ni peticiones con cookie,
+  //    Authorization u otros headers privilegiados.
+  if (
+    apiRequest &&
+    !isPrivilegedRequest(request) &&
+    isPublicJsonPath(url.pathname)
+  ) {
     event.respondWith(networkFirst(event, request, API_CACHE));
+    return;
+  }
+  if (apiRequest) {
     return;
   }
 

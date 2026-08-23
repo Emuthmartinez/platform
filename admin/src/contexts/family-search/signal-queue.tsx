@@ -31,7 +31,7 @@ import { RequireCapability } from "@/src/shared/auth/admin-gate";
 import { useAdminSessionContext } from "@/src/shared/auth/admin-session-context";
 import { Button } from "@/src/ui";
 import { useDecisionMutation } from "@/src/shared/mutation/use-decision-mutation";
-import { fetchClusterFicha, fetchSignalsPage, postSignalDecision, signalsQueryKey } from "./api";
+import { clusterFichaQueryKey, fetchClusterFicha, fetchSignalsPage, postSignalDecision, signalsQueryKey } from "./api";
 import { RecordSummary } from "./record-summary";
 import {
   signalStatusLabel,
@@ -69,11 +69,9 @@ const CONFLICT_ADVANCE_DELAY_MS = 900;
  * Preview de cluster de la señal ACTIVA únicamente — NUNCA por cada fila de
  * la lista (evitaría un fan-out N+1 en la cola completa, mismo criterio de
  * performance que el resto del contexto). Fetch perezoso con la MISMA forma
- * de query key que usa `escalation-modal.tsx` para el mismo propósito
- * (`["family-search-cluster", clusterId]`, no exportada desde
- * `cluster-ficha.tsx` — se replica aquí a propósito, mismo criterio que ese
- * archivo) — así que si el revisor ya abrió esa ficha esta sesión, esto sale
- * de cache sin una llamada nueva.
+ * de query key que usa `clusterFichaQueryKey` (`escalation-modal.tsx` and
+ * `cluster-ficha.tsx`) — así que si el revisor ya abrió esa ficha esta
+ * sesión, esto sale de cache sin una llamada nueva.
  */
 function ClusterPreview({
   clusterId,
@@ -83,7 +81,7 @@ function ClusterPreview({
   onOpenFicha: (target: FichaTarget) => void;
 }) {
   const query = useQuery({
-    queryKey: ["family-search-cluster", clusterId],
+    queryKey: clusterFichaQueryKey(clusterId),
     queryFn: () => fetchClusterFicha(clusterId),
   });
 

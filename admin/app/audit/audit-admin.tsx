@@ -5,6 +5,7 @@ import { useInfiniteQuery } from "@tanstack/react-query";
 import { Input } from "@/src/ui";
 import { RequireCapability } from "../../src/shared/auth/admin-gate";
 import { adminFetch } from "@/src/shared/http/admin-fetch";
+import { scopedQueryKey } from "@/src/lib/query-scope";
 
 /* -------------------------------------------------------------------------- */
 /* Types                                                                       */
@@ -111,7 +112,7 @@ export function AuditAdmin() {
     fetchNextPage,
     refetch,
   } = useInfiniteQuery({
-    queryKey: ["admin-audit", targetType, actorQuery],
+    queryKey: scopedQueryKey("admin-audit", targetType, actorQuery),
     queryFn: async ({ pageParam }) => {
       const res = await adminFetch(buildUrl(pageParam));
       if (!res.ok) throw new Error(`HTTP ${res.status}`);

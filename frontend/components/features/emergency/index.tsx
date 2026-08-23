@@ -13,6 +13,14 @@ import { chipFitPoints } from "./chip-fit";
 import { deploymentConfig } from "@/lib/deployment-config";
 import { qk } from "@/lib/query-keys";
 import {
+  ADMIN_SESSION_TOKEN_KEY,
+  CONFIRMED_REPORTS_KEY,
+  CONFIRMED_REPORTS_LEGACY_KEY,
+} from "@/lib/browser-storage-registry";
+import { migrateLegacyLocalStorage } from "@/lib/incident-storage";
+import { flushReadyDrafts } from "@/lib/offline-draft-flush";
+import { OfflineDraftQuotaError } from "@/lib/offline-draft-protocol";
+import {
   useReports,
   useMissingMap,
   useEarthquakes,
@@ -29,7 +37,7 @@ import type { GeocodeResult } from "@/components/features/emergency/AddressSearc
 import {
   countPending,
   enqueueReport,
-  listPending,
+  listReadyDrafts,
   removePending,
   type QueuedPayload,
 } from "@/lib/offline-queue";
@@ -40,8 +48,9 @@ import {
 import MapPanel from "./MapPanel";
 import MapTutorialButton from "./MapTutorial";
 import ReportComposer, { type ReportComposerSubmit } from "./ReportComposer";
+import OfflineDraftBanner from "./OfflineDraftBanner";
 import AdminPanel from "./AdminPanel";
-import { Check, Link2, WifiOff } from "lucide-react";
+import { Check, Link2 } from "lucide-react";
 
 const DUPLICATE_RADIUS_M = 50;
 const DUPLICATE_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -56,7 +65,6 @@ const AFFECTED_CENTER: { lat: number; lng: number } = {
 };
 const POLL_INTERVAL_MS = 10_000;
 const LOW_BANDWIDTH_POLL_INTERVAL_MS = 45_000;
-const ADMIN_STORAGE_KEY = "emergency:adminToken";
 // Debounce de bounds del mapa: evita un request por cada frame de pan/zoom.
 const MAP_BOUNDS_DEBOUNCE_MS = 350;
 
@@ -140,7 +148,11 @@ export default function EmergencyApp() {
   const [confirmed, setConfirmed] = useState<Set<string>>(() => {
     if (typeof window === "undefined") return new Set();
     try {
-      const stored = localStorage.getItem("emergency:confirmed");
+      migrateLegacyLocalStorage(
+        CONFIRMED_REPORTS_LEGACY_KEY,
+        CONFIRMED_REPORTS_KEY,
+      );
+      const stored = localStorage.getItem(CONFIRMED_REPORTS_KEY);
       return stored ? new Set(JSON.parse(stored)) : new Set();
     } catch {
       return new Set();
@@ -163,7 +175,7 @@ export default function EmergencyApp() {
   const [adminToken, setAdminToken] = useState<string | null>(() =>
     typeof window === "undefined"
       ? null
-      : sessionStorage.getItem(ADMIN_STORAGE_KEY),
+      : sessionStorage.getItem(ADMIN_SESSION_TOKEN_KEY),
   );
   const [showAdminLogin, setShowAdminLogin] = useState(false);
   const [focus, setFocus] = useState<{
@@ -211,13 +223,13 @@ export default function EmergencyApp() {
   }, [placing, reportOpen, showAdminLogin]);
 
   const loginAdmin = useCallback((token: string) => {
-    sessionStorage.setItem(ADMIN_STORAGE_KEY, token);
+    sessionStorage.setItem(ADMIN_SESSION_TOKEN_KEY, token);
     setAdminToken(token);
     setShowAdminLogin(false);
   }, []);
 
   const logoutAdmin = useCallback(() => {
-    sessionStorage.removeItem(ADMIN_STORAGE_KEY);
+    sessionStorage.removeItem(ADMIN_SESSION_TOKEN_KEY);
     setAdminToken(null);
   }, []);
 
@@ -235,7 +247,7 @@ export default function EmergencyApp() {
         const next = new Set(prev);
         next.add(id);
         try {
-          localStorage.setItem("emergency:confirmed", JSON.stringify([...next]));
+          localStorage.setItem(CONFIRMED_REPORTS_KEY, JSON.stringify([...next]));
         } catch {
           /* localStorage puede no estar disponible */
         }
@@ -256,41 +268,34 @@ export default function EmergencyApp() {
     [patchReports, confirmMutation, qc],
   );
 
-  // Intenta enviar los reportes encolados sin conexión. Se detiene en cuanto
-  // la red vuelve a fallar y reintentará en el siguiente disparo.
+  // Auto-flush only `ready` drafts (Turnstile off / local). Migrated v1
+  // drafts stay as verification_required until the person sends them.
   const flushPending = useCallback(async () => {
     if (flushingRef.current) return;
     flushingRef.current = true;
     try {
-      const pending = await listPending();
-      for (const item of pending) {
-        const outcome = await postReportToServer(item.payload);
-        if (outcome.status === "ok") {
-          await removePending(item.localId);
-          if (outcome.report) {
-            const created = outcome.report;
-            patchReports((prev) =>
-              prev.some((r) => r.id === created.id) ? prev : [created, ...prev],
-            );
-          }
-        } else if (outcome.status === "drop") {
-          // El servidor rechazó los datos: lo descartamos para no reintentar
-          // indefinidamente un reporte que nunca será aceptado.
-          await removePending(item.localId);
-        } else {
-          // Sigue sin conexión: cortamos el barrido y reintentamos luego.
-          break;
-        }
-      }
+      const ready = await listReadyDrafts();
+      await flushReadyDrafts({
+        drafts: ready,
+        post: postReportToServer,
+        remove: removePending,
+        onAccepted: (created) => {
+          if (!created) return;
+          patchReports((prev) =>
+            prev.some((r) => r.id === created.id) ? prev : [created, ...prev],
+          );
+        },
+      });
     } finally {
       flushingRef.current = false;
       try {
         setPendingCount(await countPending());
+        void qc.invalidateQueries({ queryKey: qk.offlineDrafts });
       } catch {
         /* IndexedDB no disponible: dejamos el contador como está */
       }
     }
-  }, [patchReports]);
+  }, [patchReports, qc]);
 
   // Cuenta pendientes al cargar, intenta enviarlos y reintenta al recuperar la
   // conexión (el evento "online" del navegador).
@@ -453,8 +458,16 @@ export default function EmergencyApp() {
             photo: full.photo,
             volunteerCode: full.volunteerCode,
           };
-          await enqueueReport(queuedPayload);
-        } catch {
+          await enqueueReport(
+            queuedPayload,
+            process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY
+              ? "verification_required"
+              : "ready",
+          );
+        } catch (err) {
+          if (err instanceof OfflineDraftQuotaError) {
+            throw err;
+          }
           throw new Error(
             "No hay conexión y no se pudo guardar el reporte en este dispositivo. Inténtalo de nuevo.",
           );
@@ -462,6 +475,7 @@ export default function EmergencyApp() {
         setReportOpen(false);
         setDraft(null);
         setPendingCount(await countPending());
+        void qc.invalidateQueries({ queryKey: qk.offlineDrafts });
         setQueuedFlash(true);
         return;
       }
@@ -478,7 +492,7 @@ export default function EmergencyApp() {
         );
       }
     },
-    [draft, reports, patchReports],
+    [draft, reports, patchReports, qc],
   );
 
   const handleResolve = useCallback(
@@ -570,31 +584,14 @@ export default function EmergencyApp() {
           </button>
         </div>
       </div>
-      {pendingCount > 0 && (
-        <div
-          role="status"
-          className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--qi-warning)] bg-[var(--qi-warning-surface)] px-4 py-2.5 text-sm"
-          style={{ color: "var(--qi-warning-strong)" }}
-        >
-          <span className="flex items-center gap-2">
-            <WifiOff size={16} aria-hidden="true" />
-            <span>
-              {pendingCount === 1
-                ? "1 reporte sin enviar"
-                : `${pendingCount} reportes sin enviar`}
-              {" · se enviarán automáticamente al recuperar la conexión."}
-            </span>
-          </span>
-          <button
-            type="button"
-            onClick={() => flushPending()}
-            className="e-btn-secondary shrink-0 rounded-lg px-3 py-1.5 text-xs"
-            style={{ minHeight: 0, background: "var(--esurf)", color: "var(--etext)" }}
-          >
-            Reintentar ahora
-          </button>
-        </div>
-      )}
+      <OfflineDraftBanner
+          onAccepted={(created) => {
+            if (!created) return;
+            patchReports((prev) =>
+              prev.some((r) => r.id === created.id) ? prev : [created, ...prev],
+            );
+          }}
+        />
       {network.isConstrained && (
         <div
           className="mb-3 rounded-xl border px-3 py-2 text-sm"

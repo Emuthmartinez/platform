@@ -1,9 +1,13 @@
-const STORAGE_KEY = "acopio.editTokens";
+import {
+  ACOPIO_EDIT_TOKENS_KEY,
+  ACOPIO_EDIT_TOKENS_LEGACY_KEY,
+} from "@/lib/browser-storage-registry";
 
 function readMap(): Record<string, string> {
   if (typeof window === "undefined") return {};
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    migrateLegacy();
+    const raw = window.localStorage.getItem(ACOPIO_EDIT_TOKENS_KEY);
     if (!raw) return {};
     const parsed = JSON.parse(raw) as unknown;
     if (!parsed || typeof parsed !== "object") return {};
@@ -13,10 +17,23 @@ function readMap(): Record<string, string> {
   }
 }
 
+function migrateLegacy(): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (window.localStorage.getItem(ACOPIO_EDIT_TOKENS_KEY) !== null) return;
+    const legacy = window.localStorage.getItem(ACOPIO_EDIT_TOKENS_LEGACY_KEY);
+    if (legacy === null) return;
+    window.localStorage.setItem(ACOPIO_EDIT_TOKENS_KEY, legacy);
+    window.localStorage.removeItem(ACOPIO_EDIT_TOKENS_LEGACY_KEY);
+  } catch {
+    /* private mode / blocked storage */
+  }
+}
+
 export function saveAcopioEditToken(reportId: string, token: string): void {
   if (typeof window === "undefined") return;
   const next = { ...readMap(), [reportId]: token };
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  window.localStorage.setItem(ACOPIO_EDIT_TOKENS_KEY, JSON.stringify(next));
 }
 
 export function getAcopioEditToken(reportId: string): string | null {

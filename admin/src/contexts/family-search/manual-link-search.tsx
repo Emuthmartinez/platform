@@ -13,7 +13,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Input } from "@/src/ui";
-import { fetchRecordsSearch, postPropose, queueQueryKey } from "./api";
+import { fetchRecordsSearch, postPropose, queueQueryKey, recordsSearchQueryKey } from "./api";
 import { RecordSummary } from "./record-summary";
 
 export function ManualLinkSearch({
@@ -36,7 +36,7 @@ export function ManualLinkSearch({
   const queryClient = useQueryClient();
 
   const search = useQuery({
-    queryKey: ["family-search-records-search", submittedQuery],
+    queryKey: recordsSearchQueryKey(submittedQuery),
     queryFn: () => fetchRecordsSearch(submittedQuery),
     enabled: submittedQuery.trim().length >= 2,
   });

@@ -1,6 +1,26 @@
 "use client";
 
-import type { ReportType } from "./types";
+import { getAppBuildSha } from "@/lib/build-identity";
+import {
+  decodeOfflineDraft,
+  evaluateDraftQuota,
+  exportOfflineDraftJson,
+  newDraftFromPayload,
+  type OfflineDraft,
+  type OfflineDraftStatus,
+  type QueuedPayload,
+} from "@/lib/offline-draft-protocol";
+import {
+  COLOMBIA_INCIDENT_ID,
+  COLOMBIA_ORGANIZATION_ID,
+} from "@/lib/tenant";
+
+export type { QueuedPayload, OfflineDraft, OfflineDraftStatus };
+export {
+  OfflineDraftQuotaError,
+  exportOfflineDraftJson,
+  mayAutoDeleteDraft,
+} from "@/lib/offline-draft-protocol";
 
 /**
  * Cola de reportes pendientes de envío, persistida en IndexedDB.
@@ -10,27 +30,10 @@ import type { ReportType } from "./types";
  * cuota de localStorage (~5 MB) y bloquearían toda la cola. IndexedDB maneja
  * cadenas grandes sin problema y es asíncrono.
  *
- * Esta capa solo almacena; la lógica de envío y reintento vive en el cliente
- * (EmergencyApp), que reintenta al recuperar la conexión.
+ * U20: los registros son borradores versionados. v1 se lee y se reescribe
+ * como schemaVersion 2 con status verification_required. No se borra un
+ * borrador en 403 ni en fallo de migración.
  */
-
-export interface QueuedPayload {
-  type: ReportType;
-  lat: number;
-  lng: number;
-  place: string;
-  affected: number;
-  needs: string;
-  photo: string | null;
-  /** Código de voluntario que firma el reporte (opcional; atribución interna). */
-  volunteerCode?: string;
-}
-
-export interface QueuedReport {
-  localId: string;
-  payload: QueuedPayload;
-  createdAt: number;
-}
 
 const DB_NAME = "emergency-offline";
 const DB_VERSION = 1;
@@ -93,29 +96,67 @@ function newLocalId(): string {
   return `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
 }
 
+async function readAllRaw(): Promise<unknown[]> {
+  if (!hasIndexedDb()) return [];
+  const all = await withStore<unknown[]>("readonly", (store) => store.getAll());
+  return all ?? [];
+}
+
+async function persistDecoded(rawRows: unknown[]): Promise<OfflineDraft[]> {
+  const drafts: OfflineDraft[] = [];
+  for (const raw of rawRows) {
+    const decoded = decodeOfflineDraft(raw, {
+      organizationId: COLOMBIA_ORGANIZATION_ID,
+      incidentId: COLOMBIA_INCIDENT_ID,
+    });
+    if ("error" in decoded) continue;
+    drafts.push(decoded.draft);
+    if (decoded.persist) {
+      try {
+        await withStore("readwrite", (store) => store.put(decoded.draft));
+      } catch {
+        /* keep the original row; never delete on migrate failure */
+      }
+    }
+  }
+  return drafts.sort((a, b) => a.createdAt - b.createdAt);
+}
+
 /** Guarda un reporte para enviarlo más tarde. Lanza si no hay IndexedDB. */
 export async function enqueueReport(
   payload: QueuedPayload,
-): Promise<QueuedReport> {
+  status: OfflineDraftStatus = "verification_required",
+): Promise<OfflineDraft> {
   if (!hasIndexedDb()) {
     throw new Error("Almacenamiento offline no disponible en este navegador.");
   }
-  const item: QueuedReport = {
+  const existing = await listPending();
+  const item = newDraftFromPayload(payload, {
     localId: newLocalId(),
-    payload,
     createdAt: Date.now(),
-  };
+    status,
+    producerBuildSha: getAppBuildSha(),
+  });
+  evaluateDraftQuota(existing, item);
   await withStore("readwrite", (store) => store.add(item));
   return item;
 }
 
-/** Devuelve los reportes pendientes, del más antiguo al más reciente. */
-export async function listPending(): Promise<QueuedReport[]> {
-  if (!hasIndexedDb()) return [];
-  const all = await withStore<QueuedReport[]>("readonly", (store) =>
-    store.getAll(),
+/** Devuelve los borradores de este incidente, del más antiguo al más reciente. */
+export async function listPending(): Promise<OfflineDraft[]> {
+  const raw = await readAllRaw();
+  const drafts = await persistDecoded(raw);
+  return drafts.filter(
+    (d) =>
+      d.organizationId === COLOMBIA_ORGANIZATION_ID &&
+      d.incidentId === COLOMBIA_INCIDENT_ID &&
+      d.status !== "incompatible",
   );
-  return (all ?? []).sort((a, b) => a.createdAt - b.createdAt);
+}
+
+export async function listReadyDrafts(): Promise<OfflineDraft[]> {
+  const pending = await listPending();
+  return pending.filter((d) => d.status === "ready");
 }
 
 export async function removePending(localId: string): Promise<void> {
@@ -124,7 +165,17 @@ export async function removePending(localId: string): Promise<void> {
 }
 
 export async function countPending(): Promise<number> {
-  if (!hasIndexedDb()) return 0;
-  const n = await withStore<number>("readonly", (store) => store.count());
-  return n ?? 0;
+  const pending = await listPending();
+  return pending.length;
+}
+
+export function downloadOfflineDraft(draft: OfflineDraft): void {
+  const json = exportOfflineDraftJson(draft);
+  const blob = new Blob([json], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `reporte-borrador-${draft.localId}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
 }

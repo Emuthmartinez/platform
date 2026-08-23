@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Input } from "@/src/ui";
 import { adminFetch, type FetchInit } from "@/src/shared/http/admin-fetch";
 import { useAdminSessionContext } from "@/src/shared/auth/admin-session-context";
+import { scopedQueryKey } from "@/src/lib/query-scope";
 
 interface Grant {
   id: string;
@@ -29,13 +30,13 @@ export function GrantsAdmin() {
   const [capabilityKey, setCapabilityKey] = useState("");
   const [reason, setReason] = useState("");
   const grants = useQuery({
-    queryKey: ["admin", "grants", userId],
+    queryKey: scopedQueryKey("admin", "grants", userId),
     queryFn: () =>
       json<Grant[]>(`/api/admin/grants${userId ? `?userId=${encodeURIComponent(userId)}` : ""}`),
   });
   const mutate = useMutation({
     mutationFn: ({ url, init }: { url: string; init: FetchInit }) => json(url, init),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin", "grants"] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: scopedQueryKey("admin", "grants") }),
   });
 
   function submit(event: FormEvent) {

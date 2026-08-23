@@ -2,10 +2,11 @@
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { adminFetch } from "@/src/shared/http/admin-fetch";
+import { scopedQueryKey } from "@/src/lib/query-scope";
 import type { VolunteerAnalyticsResponse } from "./types";
 
 export function volunteerAnalyticsQueryKey(since: string | null) {
-  return ["volunteer-analytics", since] as const;
+  return scopedQueryKey("volunteer-analytics", since);
 }
 
 async function fetchAnalytics(opts: {

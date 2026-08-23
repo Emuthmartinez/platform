@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-
-const STORAGE_KEY = "terremoto:theme";
+import { THEME_STORAGE_KEY } from "@/lib/browser-storage-registry";
 
 /**
  * Aplica el tema en `<html data-dark>`. Por defecto el sitio es claro: solo se
@@ -13,7 +12,7 @@ const STORAGE_KEY = "terremoto:theme";
 export default function ThemeProvider() {
   useEffect(() => {
     const root = document.documentElement;
-    const stored = localStorage.getItem(STORAGE_KEY);
+    const stored = localStorage.getItem(THEME_STORAGE_KEY);
     root.dataset.dark = stored === "dark" ? "true" : "false";
   }, []);
 
@@ -25,5 +24,5 @@ export function toggleTheme(): void {
   const root = document.documentElement;
   const next = root.dataset.dark !== "true";
   root.dataset.dark = next ? "true" : "false";
-  localStorage.setItem(STORAGE_KEY, next ? "dark" : "light");
+  localStorage.setItem(THEME_STORAGE_KEY, next ? "dark" : "light");
 }

@@ -61,8 +61,8 @@ export default function ReportComposer({
           role="status"
           className="fixed inset-x-0 bottom-4 z-[2500] mx-auto w-fit max-w-[92%] rounded-full bg-slate-900 px-4 py-2 text-center text-sm font-medium text-white shadow-lg"
         >
-          ✅ Reporte guardado. Se enviará automáticamente cuando vuelva la
-          conexión.
+          ✅ Borrador guardado en este dispositivo. No se envía solo: ábrelo
+          en el aviso del mapa para enviarlo, exportarlo o eliminarlo.
         </div>
       )}
     </>
