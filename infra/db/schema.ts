@@ -385,6 +385,7 @@ export const hospitals = pgTable(
     priorityZone: text("priority_zone").notNull().default("P3"),
     isPriority: boolean("is_priority").notNull().default(false),
     createdAt: epochMs("created_at").notNull(),
+    ...incidentOwnershipColumns(),
   },
   (t) => [
     // Partial unique index: external_id unique WHERE NOT NULL.
@@ -392,6 +393,7 @@ export const hospitals = pgTable(
       .on(t.externalId)
       .where(sql`external_id IS NOT NULL`),
     index("idx_hospitals_state").on(t.state, t.priorityZone, t.name),
+    incidentOwnershipFk("hospitals", t),
   ],
 );
 
@@ -413,6 +415,7 @@ export const hospitalPatients = pgTable(
     documentHash: text("document_hash"),
     admittedAt: epochMs("admitted_at").notNull(),
     updatedAt: epochMs("updated_at").notNull(),
+    ...incidentOwnershipColumns(),
   },
   (t) => [
     index("idx_hospital_patients_hospital").on(
@@ -426,6 +429,7 @@ export const hospitalPatients = pgTable(
     uniqueIndex("idx_hospital_patients_document_hash_unique")
       .on(t.documentHash)
       .where(sql`document_hash IS NOT NULL`),
+    incidentOwnershipFk("hospital_patients", t),
   ],
 );
 
@@ -591,6 +595,7 @@ export const hospitalSupplyStatuses = pgTable(
     updatedBy: text("updated_by").notNull().default("equipo_operativo"),
     source: text("source").notNull().default("admin_panel"),
     createdAt: epochMs("created_at").notNull(),
+    ...incidentOwnershipColumns(),
   },
   (t) => [
     uniqueIndex("idx_hospital_supply_status_unique").on(
@@ -603,6 +608,7 @@ export const hospitalSupplyStatuses = pgTable(
       t.lastConfirmedAt,
     ),
     index("idx_hospital_supply_status_hospital").on(t.hospitalId),
+    incidentOwnershipFk("hospital_supply_statuses", t),
   ],
 );
 
@@ -626,6 +632,7 @@ export const hospitalSupplyNeeds = pgTable(
     source: text("source").notNull().default("admin_panel"),
     createdAt: epochMs("created_at").notNull(),
     updatedAt: epochMs("updated_at").notNull(),
+    ...incidentOwnershipColumns(),
   },
   (t) => [
     index("idx_hospital_supply_needs_active").on(
@@ -635,6 +642,7 @@ export const hospitalSupplyNeeds = pgTable(
       t.updatedAt.desc(),
     ),
     index("idx_hospital_supply_needs_category").on(t.category, t.status),
+    incidentOwnershipFk("hospital_supply_needs", t),
   ],
 );
 
@@ -654,6 +662,7 @@ export const hospitalSupplyHelpRequests = pgTable(
     restrictedNote: text("restricted_note").notNull().default(""),
     createdAt: epochMs("created_at").notNull(),
     updatedAt: epochMs("updated_at").notNull(),
+    ...incidentOwnershipColumns(),
   },
   (t) => [
     index("idx_hospital_supply_help_open").on(
@@ -662,6 +671,7 @@ export const hospitalSupplyHelpRequests = pgTable(
       t.createdAt.desc(),
     ),
     index("idx_hospital_supply_help_hospital").on(t.hospitalId),
+    incidentOwnershipFk("hospital_supply_help_requests", t),
   ],
 );
 
@@ -679,6 +689,7 @@ export const hospitalPocAssignments = pgTable(
     active: boolean("active").notNull().default(true),
     createdAt: epochMs("created_at").notNull(),
     updatedAt: epochMs("updated_at").notNull(),
+    ...incidentOwnershipColumns(),
   },
   (t) => [
     index("idx_hospital_poc_assignments_hospital").on(t.hospitalId, t.active),
@@ -687,6 +698,7 @@ export const hospitalPocAssignments = pgTable(
       t.accessTokenHash,
       t.active,
     ),
+    incidentOwnershipFk("hospital_poc_assignments", t),
   ],
 );
 
@@ -705,6 +717,7 @@ export const hospitalSupplyEvents = pgTable(
     source: text("source").notNull().default("admin_panel"),
     payload: jsonb("payload").notNull().default({}),
     createdAt: epochMs("created_at").notNull(),
+    ...incidentOwnershipColumns(),
   },
   (t) => [
     index("idx_hospital_supply_events_hospital").on(
@@ -712,6 +725,7 @@ export const hospitalSupplyEvents = pgTable(
       t.createdAt.desc(),
     ),
     index("idx_hospital_supply_events_entity").on(t.entityType, t.entityId),
+    incidentOwnershipFk("hospital_supply_events", t),
   ],
 );
 
