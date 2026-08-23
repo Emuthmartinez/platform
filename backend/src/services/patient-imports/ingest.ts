@@ -12,9 +12,15 @@ import {
 } from "@/services/ocr/minimax-provider";
 import type { RawPatientRow } from "@/services/patient-import-logic";
 import { parseImportFile } from "@/services/patient-import-parse";
-import { stampDefaultHospital } from "./internal";
+import {
+	loadHeader,
+	stampDefaultHospital,
+	tenantScopeFromImportHeader,
+} from "./internal";
 import { processImport } from "./process";
 import type { ImportSummaryDTO } from "./types";
+import { colombiaTenantScope } from "@/lib/colombia-tenant";
+import { incidentOwnership } from "@/tenant/ownership";
 
 const { patientImports, patientImportRows } = schema;
 
@@ -25,6 +31,11 @@ async function replaceStagingRows(
 ): Promise<void> {
 	// Lote con hospital destino: el id elegido pisa el de cada fila.
 	const rows = stampDefaultHospital(rawRows, defaultHospitalId);
+	const header = await loadHeader(importId);
+	const scope = header
+		? tenantScopeFromImportHeader(header)
+		: colombiaTenantScope();
+	const ownership = incidentOwnership(scope);
 	const db = getDb();
 	const now = Date.now();
 	// SIN transacción interactiva (Workers). Orden deliberado: borrar, insertar
@@ -45,6 +56,7 @@ async function replaceStagingRows(
 				rawData: raw as Record<string, unknown>,
 				createdAt: now,
 				updatedAt: now,
+				...ownership,
 			})),
 		);
 	}

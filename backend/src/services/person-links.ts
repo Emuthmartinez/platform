@@ -34,6 +34,8 @@ import {
   type DecisionHistoryEntryDTO,
 } from "@/services/person-clusters";
 import { orderPair, evidenceClassRank, type EvidenceClass } from "@/services/matcher/propose";
+import { colombiaTenantScope } from "@/lib/colombia-tenant";
+import { incidentOwnership, tenantScopeFromIds } from "@/tenant/ownership";
 
 const { personLinks, personLinkDecisions, personClusters } = schema;
 
@@ -129,6 +131,14 @@ async function insertLinkDecision(
       },
       decidedBy: actorId,
       decidedAt: Date.now(),
+      ...incidentOwnership(
+        row.organizationId && row.incidentId
+          ? tenantScopeFromIds({
+              organizationId: row.organizationId,
+              incidentId: row.incidentId,
+            })
+          : colombiaTenantScope(),
+      ),
     });
 }
 
@@ -364,6 +374,7 @@ export async function manualProposeLink(input: ManualProposeInput): Promise<Manu
       method: "manual",
       matcherVersion: null,
       proposedAt: now,
+      ...incidentOwnership(colombiaTenantScope()),
     })
     .onConflictDoNothing({ target: [personLinks.prnA, personLinks.prnB] })
     .returning();

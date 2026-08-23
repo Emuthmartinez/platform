@@ -386,6 +386,13 @@ surface. Turnstile and rate limiting remain the real protection.
 - Migrations must follow the expand-contract pattern, for rollouts with no
   downtime: old containers keep serving while the new one starts against
   the updated schema.
+- **Dual-write (U18):** new rows on tenant-scoped tables receive
+  `organization_id` / `incident_id` from an explicit `TenantScope`. The
+  columns stay nullable until U8. Queue producers still emit the legacy v1
+  body (no `schemaVersion: 2`). Staging switches between this backend and
+  the previous one by reverting the Worker version or the staging PR. Do
+  not point Colombia DNS at the platform clone. Inventory:
+  `docs/platform/execution-boundaries.md`.
 - **Public replica (SQL hub, optional, `ENABLE_HUB_FEDERATION`).** A second,
   read-only Postgres instance can receive, through **logical
   replication**, only the tables and columns marked publishable (with no

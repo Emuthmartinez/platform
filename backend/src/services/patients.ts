@@ -20,6 +20,8 @@
 import { sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { ensurePrn, enqueueMatcherSweep } from "@/services/person-records";
+import { incidentOwnership } from "@/tenant/ownership";
+import type { TenantScope } from "@/tenant/scope";
 
 export type PatientStatus =
   | "hospitalized"
@@ -277,7 +279,10 @@ export interface CreatePatientInput {
 }
 
 /** Crea un paciente. Recorta/clampea igual que el resto del service. */
-export async function createPatient(input: CreatePatientInput): Promise<PatientDTO> {
+export async function createPatient(
+  input: CreatePatientInput,
+  scope: TenantScope,
+): Promise<PatientDTO> {
   const db = await getDb();
   const id = crypto.randomUUID();
   const now = Date.now();
@@ -295,12 +300,14 @@ export async function createPatient(input: CreatePatientInput): Promise<PatientD
   const notes = (input.notes ?? "").trim().slice(0, 600);
   const contact = (input.contact ?? "").trim().slice(0, 120);
 
+  const ownership = incidentOwnership(scope);
   await db.execute(sql`
     INSERT INTO hospital_patients
-      (id, hospital_id, name, age, condition, status, notes, contact, document_hash, admitted_at, updated_at)
+      (id, hospital_id, name, age, condition, status, notes, contact, document_hash, admitted_at, updated_at, organization_id, incident_id)
     VALUES
       (${id}, ${input.hospitalId}, ${name}, ${age}, ${condition}, ${status},
-       ${notes}, ${contact}, ${input.documentHash ?? null}, ${now}, ${now})
+       ${notes}, ${contact}, ${input.documentHash ?? null}, ${now}, ${now},
+       ${ownership.organizationId}, ${ownership.incidentId})
   `);
 
   // Best-effort (U7/R8): nunca debe tumbar esta creación ya confirmada —
@@ -311,8 +318,8 @@ export async function createPatient(input: CreatePatientInput): Promise<PatientD
   // registro nunca aparece en listUnstamped (ya tiene PRN) y el reconcile
   // jamás lo barre, así que un paciente cuya cédula coincide con un reporte
   // existente no genera propuesta hasta el próximo cambio de document_hash.
-  const prn = await ensurePrn("hospital_patient", id);
-  if (prn) await enqueueMatcherSweep([prn]);
+  const prn = await ensurePrn("hospital_patient", id, scope);
+  if (prn) await enqueueMatcherSweep([prn], scope);
 
   return {
     id,

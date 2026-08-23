@@ -11,6 +11,9 @@
 
 import { eq, sql } from "drizzle-orm";
 import { getDb, hasDbEnv, schema } from "@/db";
+import { colombiaTenantScope } from "@/lib/colombia-tenant";
+import { sqlOwnsIncidentOrLegacyNull } from "@/tenant/ownership";
+import type { TenantScope } from "@/tenant/scope";
 
 const { geocodeCache } = schema;
 
@@ -135,6 +138,8 @@ export interface GeocodeOptions {
   delayMs?: number;
   /** Presupuesto de tiempo (ms): se corta al excederlo. */
   timeBudgetMs?: number;
+  /** Incident executor. Defaults to Colombia during the dual-write window. */
+  scope?: TenantScope;
 }
 
 /**
@@ -155,6 +160,8 @@ export async function runGeocode(
   const delayMs = Math.max(0, Math.trunc(opts.delayMs ?? DEFAULT_DELAY_MS));
   const timeBudgetMs = Math.max(1_000, Math.trunc(opts.timeBudgetMs ?? DEFAULT_TIME_BUDGET_MS));
   const startedAt = Date.now();
+  const scope = opts.scope ?? colombiaTenantScope();
+  const tenantPredicate = sqlOwnsIncidentOrLegacyNull(scope);
 
   const db = getDb();
 
@@ -166,6 +173,7 @@ export async function runGeocode(
       SELECT lower(trim(last_seen)) AS key, min(last_seen) AS sample
       FROM missing_persons
       WHERE status = 'active' AND trim(last_seen) <> '' AND lat IS NULL
+        AND ${tenantPredicate}
       GROUP BY lower(trim(last_seen))
       ORDER BY count(*) DESC
       LIMIT ${maxLocations}
@@ -230,6 +238,7 @@ export async function runGeocode(
       await db.execute(sql`
         UPDATE missing_persons SET lat = ${coords.lat}, lng = ${coords.lng}
         WHERE status = 'active' AND lower(trim(last_seen)) = ${key} AND lat IS NULL
+          AND ${tenantPredicate}
         RETURNING id
       `)
     ).rows as { id: string }[];

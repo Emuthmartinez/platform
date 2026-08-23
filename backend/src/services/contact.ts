@@ -8,6 +8,8 @@
  */
 import { desc, eq, sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
+import { incidentOwnership } from "@/tenant/ownership";
+import type { TenantScope } from "@/tenant/scope";
 
 const { contactMessages } = schema;
 
@@ -36,7 +38,7 @@ export async function createContactMessage(input: {
   subject: string;
   message: string;
   ipHash?: string | null;
-}): Promise<{ id: string }> {
+}, scope: TenantScope): Promise<{ id: string }> {
   const id = crypto.randomUUID();
   const db = await getDb();
   await db.insert(contactMessages).values({
@@ -48,6 +50,7 @@ export async function createContactMessage(input: {
     read: false,
     ipHash: input.ipHash ?? null,
     createdAt: Date.now(),
+    ...incidentOwnership(scope),
   });
   return { id };
 }

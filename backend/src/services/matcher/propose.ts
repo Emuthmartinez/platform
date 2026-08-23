@@ -33,6 +33,8 @@
  */
 import { sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
+import { colombiaTenantScope } from "@/lib/colombia-tenant";
+import { incidentOwnership } from "@/tenant/ownership";
 
 const { personLinks } = schema;
 
@@ -135,6 +137,7 @@ export async function proposeLink(input: ProposeLinkInput): Promise<ProposeLinkR
     ELSE 0
   END)`;
 
+  const ownership = incidentOwnership(colombiaTenantScope());
   const rows = await db
     .insert(personLinks)
     .values({
@@ -148,6 +151,7 @@ export async function proposeLink(input: ProposeLinkInput): Promise<ProposeLinkR
       method: MATCHER_METHOD,
       matcherVersion: MATCHER_VERSION,
       proposedAt: now,
+      ...ownership,
     })
     .onConflictDoUpdate({
       target: [personLinks.prnA, personLinks.prnB],
@@ -157,6 +161,8 @@ export async function proposeLink(input: ProposeLinkInput): Promise<ProposeLinkR
         evidenceClass: input.evidenceClass,
         matcherVersion: MATCHER_VERSION,
         proposedAt: now,
+        organizationId: sql`COALESCE(${personLinks.organizationId}, ${ownership.organizationId})`,
+        incidentId: sql`COALESCE(${personLinks.incidentId}, ${ownership.incidentId})`,
         // Dentro de SET, una referencia sin `excluded.` a la columna de la
         // tabla es la fila EXISTENTE (pre-update) — exactamente lo que
         // necesitamos para decidir si "unsure" se queda igual o sube.

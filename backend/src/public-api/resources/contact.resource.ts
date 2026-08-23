@@ -10,6 +10,7 @@
 import { z } from "zod";
 import { createCrudRouter, type CrudResource } from "@/public-api/crud-factory";
 import * as service from "@/services/contact";
+import { requireTenantScope } from "@/middleware/tenant";
 
 const createSchema = z.object({
   name: z.string().trim().min(1, "Indica tu nombre.").max(120),
@@ -46,9 +47,9 @@ export const contactResource: CrudResource<
   ops: {
     list: () => service.listContactMessages(),
     get: (id) => service.getContactMessageById(id),
-    create: async (input) => {
+    create: async (input, req) => {
       // createContactMessage solo devuelve {id}; devolvemos el DTO completo.
-      const { id } = await service.createContactMessage(input);
+      const { id } = await service.createContactMessage(input, requireTenantScope(req));
       const dto = await service.getContactMessageById(id);
       if (!dto) throw new Error("contact: el mensaje recién creado no se encontró");
       return dto;

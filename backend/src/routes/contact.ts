@@ -15,6 +15,7 @@ import { logDbFailure } from "@/lib/db-error";
 import { captureFailedSubmission } from "@/lib/failed-submission";
 import { serviceUnavailable } from "@/lib/errors";
 import * as service from "@/services/contact";
+import { requireTenantScope } from "@/middleware/tenant";
 
 export const contactRouter = Router();
 
@@ -102,7 +103,7 @@ contactRouter.post(
         subject: body.subject,
         message: body.message,
         ipHash: hashIp(req),
-      });
+      }, requireTenantScope(req));
       res.status(200).json({
         ok: true,
         id: message.id,
@@ -112,7 +113,7 @@ contactRouter.post(
       logDbFailure("contact.create", err);
       // Red de durabilidad: el 503 sigue igual, pero el envio de la
       // persona no se tira. Ver lib/failed-submission (nunca lanza).
-      await captureFailedSubmission("contact", body, err);
+      await captureFailedSubmission("contact", body, err, req.tenantScope);
       throw serviceUnavailable("No se pudo guardar el mensaje.");
     }
   }),

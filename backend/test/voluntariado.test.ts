@@ -135,8 +135,13 @@ beforeAll(async () => {
     "@/public-api/routers/volunteer-tasks-actions.router"
   );
   const { errorHandler } = await import("@/middleware");
+  const { colombiaTenantScope } = await import("@/lib/colombia-tenant");
   app = express();
   app.use(express.json());
+  app.use((req, _res, next) => {
+    req.tenantScope = colombiaTenantScope();
+    next();
+  });
   app.use("/api/voluntariado", voluntariadoRouter);
   app.use("/api/public/volunteer-tasks", volunteerTasksActionsRouter);
   app.use(errorHandler);

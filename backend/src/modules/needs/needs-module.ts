@@ -7,6 +7,7 @@ import { DisabledNeedPublisher } from "./infrastructure/disabled-need-publisher"
 import { ResponseGridNeedsClient } from "./infrastructure/responsegrid/responsegrid-needs-client";
 import { ResponseGridNeedPublisher } from "./infrastructure/responsegrid/responsegrid-need-publisher";
 import { enqueueNeedPublication } from "./infrastructure/needs-publication-queue";
+import type { TenantScope } from "@/tenant/scope";
 
 function createNeedPublisher(): NeedPublisher {
   // Módulo OFF por defecto (gating): sin ENABLE_RESPONSEGRID=true, publicar
@@ -52,6 +53,7 @@ export interface MirrorNeedInput {
  */
 export async function publishNeedAtLocation(
   input: MirrorNeedInput,
+  scope: TenantScope,
 ): Promise<void> {
   try {
     await enqueueNeedPublication({
@@ -68,7 +70,7 @@ export async function publishNeedAtLocation(
         latitude: input.latitude,
         longitude: input.longitude,
       },
-    });
+    }, scope);
   } catch (err) {
     console.warn(
       `[needs] no se pudo espejar la necesidad en ResponseGrid: ${
@@ -90,6 +92,7 @@ export interface MirrorNeedByAddressInput {
 /** Espejo para callers que solo tienen dirección (p.ej. hospitales). */
 export async function publishNeedByAddress(
   input: MirrorNeedByAddressInput,
+  scope: TenantScope,
 ): Promise<void> {
   try {
     await enqueueNeedPublication({
@@ -101,7 +104,7 @@ export async function publishNeedByAddress(
         items: input.items,
         author: null,
       },
-    });
+    }, scope);
   } catch (err) {
     console.warn(
       `[needs] no se pudo espejar la necesidad (por dirección) en ResponseGrid: ${

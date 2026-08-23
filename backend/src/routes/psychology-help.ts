@@ -18,6 +18,7 @@ import { hashIp } from "@/lib/client-ip";
 import { logDbFailure } from "@/lib/db-error";
 import { forbidden, serviceUnavailable } from "@/lib/errors";
 import * as service from "@/services/psychology-help";
+import { requireTenantScope } from "@/middleware/tenant";
 
 export const psychologyHelpRouter = Router();
 
@@ -113,11 +114,14 @@ psychologyHelpRouter.post(
         if (!isValidFormToken(body.token)) {
           throw forbidden("Callback de formulario no autorizado.");
         }
-        const count = await service.incrementPsychologyHelpFromForm();
+        const count = await service.incrementPsychologyHelpFromForm(requireTenantScope(req));
         res.status(200).json({ count });
         return;
       }
-      const count = await service.incrementPsychologyHelpClick(hashIp(req));
+      const count = await service.incrementPsychologyHelpClick(
+        hashIp(req),
+        requireTenantScope(req),
+      );
       res.status(200).json({ count });
     } catch (err) {
       // Un HttpError deliberado (el 403 del callback de formulario) sale tal

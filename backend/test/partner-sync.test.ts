@@ -17,6 +17,7 @@ import request from "supertest";
 import { and, desc, eq } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { createApiKey, revokeApiKey } from "@/services/api-keys";
+import { colombiaTenantScope } from "@/lib/colombia-tenant";
 import * as missingService from "@/services/missing";
 import {
 	allowedPartnerMediaUrl,
@@ -85,10 +86,14 @@ async function makePartnerApiKey(
 		isSystemAdmin: false,
 		isSuperAdmin: false,
 	};
-	const { apiKey, rawKey } = await createApiKey(authUser, {
-		name: "clave de test — partner-sync",
-		scopes: caps,
-	});
+	const { apiKey, rawKey } = await createApiKey(
+		authUser,
+		{
+			name: "clave de test — partner-sync",
+			scopes: caps,
+		},
+		colombiaTenantScope(),
+	);
 	return { rawKey, apiKeyId: apiKey.id, userId, email };
 }
 

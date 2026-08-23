@@ -9,6 +9,8 @@ import { getDb, schema } from "@/db";
 import { logDbFailure } from "@/lib/db-error";
 import { purgeFailedSubmissionsByEmail } from "@/services/failed-submissions";
 import { anonymizePledgesByContact } from "@/services/campaign/anonymize";
+import { incidentOwnership } from "@/tenant/ownership";
+import type { TenantScope } from "@/tenant/scope";
 
 const { dataDeletionRequests } = schema;
 
@@ -28,7 +30,7 @@ export async function createDeletionRequest(input: {
   email: string;
   details?: string | null;
   ipHash?: string | null;
-}): Promise<{ id: string }> {
+}, scope: TenantScope): Promise<{ id: string }> {
   const id = crypto.randomUUID();
   const now = Date.now();
   const db = await getDb();
@@ -41,6 +43,7 @@ export async function createDeletionRequest(input: {
     ipHash: input.ipHash ?? null,
     createdAt: now,
     updatedAt: now,
+    ...incidentOwnership(scope),
   });
   return { id };
 }

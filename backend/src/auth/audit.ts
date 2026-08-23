@@ -9,6 +9,7 @@
 import type { Request } from "express";
 import { getDb, schema } from "@/db";
 import { hashIp } from "@/lib/client-ip";
+import { globalAuditOwnership, incidentAuditOwnership } from "@/tenant/ownership";
 
 export interface AuditEntry {
   action: string; // "role.create", "report.delete", "auth.login", ...
@@ -26,6 +27,9 @@ export async function writeAudit(req: Request, entry: AuditEntry): Promise<void>
     } catch {
       ipHash = null; // sin IP_SALT no hasheamos; no es motivo para perder el evento
     }
+    const ownership = req.tenantScope
+      ? incidentAuditOwnership(req.tenantScope)
+      : globalAuditOwnership();
     await getDb()
       .insert(schema.auditLog)
       .values({
@@ -36,6 +40,7 @@ export async function writeAudit(req: Request, entry: AuditEntry): Promise<void>
         metadata: entry.metadata ?? null,
         ipHash,
         createdAt: Date.now(),
+        ...ownership,
       });
   } catch (err) {
     console.error("audit write failed:", entry.action, err);

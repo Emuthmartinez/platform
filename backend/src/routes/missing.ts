@@ -21,7 +21,8 @@ import { Router, json } from "express";
 import { z } from "zod";
 import { asyncHandler, rateLimit, requireHuman, requireAdmin, setPublicPhotoHeaders, validate } from "@/middleware";
 import { jsonWithEtag } from "@/lib/http";
-import { cached } from "@/lib/cache";
+import { cached, cacheParamDigest } from "@/lib/cache";
+import { requireTenantScope } from "@/middleware/tenant";
 import { logDbFailure } from "@/lib/db-error";
 import { captureFailedSubmission } from "@/lib/failed-submission";
 import { badRequest, payloadTooLarge, notFound, serviceUnavailable } from "@/lib/errors";
@@ -124,7 +125,7 @@ missingRouter.get(
     // Una búsqueda efectiva necesita >= MIN_SEARCH_LEN caracteres; por debajo se
     // trata como listado normal (TTL corto). Mismo criterio que el Next previo.
     const hasSearch = (search ?? "").trim().length >= MIN_SEARCH_LEN;
-    const key = `missing:${status}:${page}:${pageSize}:${search ?? ""}`;
+    const key = `missing:${status}:${page}:${pageSize}:${cacheParamDigest(search ?? "")}`;
     const result = await cached(key, hasSearch ? 30_000 : POLLED_CACHE_MS, () =>
       service.listMissingPage({ status, page, pageSize, search }),
     );
@@ -176,12 +177,12 @@ missingRouter.post(
         photo: body.photo,
         reportType: body.reportType,
         ipHash: hashIp(req),
-      });
+      }, requireTenantScope(req));
     } catch (err) {
       logDbFailure("missing.create", err);
       // Red de durabilidad: el 503 sigue igual, pero el envio de la
       // persona no se tira. Ver lib/failed-submission (nunca lanza).
-      await captureFailedSubmission("missing", body, err);
+      await captureFailedSubmission("missing", body, err, req.tenantScope);
       throw serviceUnavailable(
         "No se pudo guardar el reporte. Revisa tu conexión e inténtalo de nuevo.",
       );
@@ -337,7 +338,10 @@ missingRouter.delete(
     // req.user NO existe en esta superficie legacy (requireAdmin = token
     // compartido x-admin-token, no sesión JWT) — 'admin' es la atribución.
     const tombstone = await tombstonePersonRecord("missing_report", id, req.user?.id ?? "admin");
-    const removed = await service.removeMissing(id);
+    const removed = await service.removeMissing(
+      id,
+      requireTenantScope(req),
+    );
     if (!removed) throw notFound("No encontrado");
     await writeAudit(req, {
       action: "missing.delete",

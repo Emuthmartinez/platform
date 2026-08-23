@@ -19,6 +19,8 @@ import {
   type JobRoute,
 } from "@/lib/job-dispatch";
 import { serviceUnavailable } from "@/lib/errors";
+import { incidentAuditOwnership, tenantJobFields } from "@/tenant/ownership";
+import type { TenantScope } from "@/tenant/scope";
 import type { NewNeed, ResolvedLocation } from "../domain/need";
 
 export const NEEDS_PUBLICATION_QUEUE = "needs-publication";
@@ -73,6 +75,7 @@ function publicResult(result: unknown): { id: string; status: string } | null {
 export async function recordNeedPublicationState(
   id: string,
   state: PersistedState,
+  scope: TenantScope,
   options: { result?: unknown; failedReason?: string | null } = {},
 ): Promise<void> {
   await getDb()
@@ -89,10 +92,14 @@ export async function recordNeedPublicationState(
       },
       ipHash: null,
       createdAt: Date.now(),
+      ...incidentAuditOwnership(scope),
     });
 }
 
-async function getPersistedState(id: string): Promise<NeedPublicationState | null> {
+async function getPersistedState(
+  id: string,
+  scope: TenantScope,
+): Promise<NeedPublicationState | null> {
   const rows = await getDb()
     .select({ metadata: schema.auditLog.metadata })
     .from(schema.auditLog)
@@ -101,6 +108,8 @@ async function getPersistedState(id: string): Promise<NeedPublicationState | nul
         eq(schema.auditLog.action, STATUS_ACTION),
         eq(schema.auditLog.targetType, STATUS_TARGET),
         eq(schema.auditLog.targetId, id),
+        eq(schema.auditLog.organizationId, scope.organizationId),
+        eq(schema.auditLog.incidentId, scope.incidentId),
       ),
     )
     .orderBy(desc(schema.auditLog.id))
@@ -121,15 +130,16 @@ async function getPersistedState(id: string): Promise<NeedPublicationState | nul
 
 export async function enqueueNeedPublication(
   data: NeedPublicationJob,
+  scope: TenantScope,
   idempotencyKey?: string,
 ): Promise<string> {
   const id = jobId(idempotencyKey);
   const transport = resolveTransport(needsPublicationRoute);
-  if (transport === "queues") await recordNeedPublicationState(id, "queued");
+  if (transport === "queues") await recordNeedPublicationState(id, "queued", scope);
   try {
     return await dispatchJob(
       needsPublicationRoute,
-      { ...data, jobId: id },
+      { ...data, jobId: id, ...tenantJobFields(scope) },
       {
         id,
         attempts: 3,
@@ -138,7 +148,7 @@ export async function enqueueNeedPublication(
     );
   } catch (error) {
     if (transport === "queues") {
-      await recordNeedPublicationState(id, "failed", {
+      await recordNeedPublicationState(id, "failed", scope, {
         failedReason: "No se pudo encolar la publicación.",
       }).catch(() => undefined);
     }
@@ -161,6 +171,7 @@ export async function enqueueNeedPublication(
  */
 export async function getNeedPublicationState(
   id: string,
+  scope: TenantScope,
 ): Promise<NeedPublicationState | null> {
   const transport = resolveTransport(needsPublicationRoute);
   if (transport === "none") {
@@ -168,7 +179,7 @@ export async function getNeedPublicationState(
       "La cola de publicación no está configurada en este despliegue.",
     );
   }
-  if (transport === "queues") return getPersistedState(id);
+  if (transport === "queues") return getPersistedState(id, scope);
   // valkeyUrl() y no process.env directo: resolveTransport decide con
   // `process.env.VALKEY_URL || env.VALKEY_URL`, y leer solo la primera aqui
   // podria decir "bullmq" arriba y `null` una linea despues.
@@ -176,5 +187,12 @@ export async function getNeedPublicationState(
   if (!url) return null;
   const { getBullmqJobState } = await import("@/lib/job-dispatch.bullmq");
   const state = await getBullmqJobState(needsPublicationRoute, id, url);
-  return state ? { ...state, result: publicResult(state.result) } : null;
+  if (!state) return null;
+  if (
+    state.organizationId !== scope.organizationId ||
+    state.incidentId !== scope.incidentId
+  ) {
+    return null;
+  }
+  return { ...state, result: publicResult(state.result) };
 }

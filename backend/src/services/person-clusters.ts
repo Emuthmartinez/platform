@@ -24,6 +24,8 @@
 import { randomUUID, createHash } from "crypto";
 import { and, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
+import { colombiaTenantScope } from "@/lib/colombia-tenant";
+import { incidentOwnership } from "@/tenant/ownership";
 
 const {
   personLinks,
@@ -174,6 +176,7 @@ async function ensureLiveMembership(
   actor: string,
 ): Promise<string | null> {
   const db = getDb();
+  const ownership = incidentOwnership(colombiaTenantScope());
   let evictedFrom: string | null = null;
   const MAX_ATTEMPTS = 5;
 
@@ -199,8 +202,8 @@ async function ensureLiveMembership(
     // índice parcial único es el árbitro; DO NOTHING si alguien más ganó la
     // carrera (se re-lee en la siguiente vuelta, nunca se lanza).
     await db.execute(sql`
-      INSERT INTO person_cluster_members (id, cluster_id, prn, added_at, removed_at, added_by)
-      VALUES (${randomUUID()}, ${canonicalClusterId}, ${prn}, ${Date.now()}, NULL, ${actor})
+      INSERT INTO person_cluster_members (id, cluster_id, prn, added_at, removed_at, added_by, organization_id, incident_id)
+      VALUES (${randomUUID()}, ${canonicalClusterId}, ${prn}, ${Date.now()}, NULL, ${actor}, ${ownership.organizationId}, ${ownership.incidentId})
       ON CONFLICT (prn) WHERE removed_at IS NULL DO NOTHING
     `);
   }
@@ -271,7 +274,12 @@ async function recomputeOne(
     canonicalClusterId = deterministicNewClusterId(component);
     await db
       .insert(personClusters)
-      .values({ id: canonicalClusterId, status: "reported_missing", createdAt: Date.now() })
+      .values({
+        id: canonicalClusterId,
+        status: "reported_missing",
+        createdAt: Date.now(),
+        ...incidentOwnership(colombiaTenantScope()),
+      })
       .onConflictDoNothing();
   }
 

@@ -27,6 +27,9 @@
  */
 import { and, isNotNull, isNull, lt, sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
+import { colombiaTenantScope } from "@/lib/colombia-tenant";
+import { sqlOwnsIncidentOrLegacyNull } from "@/tenant/ownership";
+import type { TenantScope } from "@/tenant/scope";
 
 const { failedSubmissions } = schema;
 
@@ -56,8 +59,10 @@ export interface RetentionDrainResult {
  */
 export async function drainFailedSubmissionsRetention(
   now: number = Date.now(),
+  scope: TenantScope = colombiaTenantScope(),
 ): Promise<RetentionDrainResult> {
   const db = await getDb();
+  const tenantPredicate = sqlOwnsIncidentOrLegacyNull(scope);
 
   const replayed = await db
     .delete(failedSubmissions)
@@ -65,6 +70,7 @@ export async function drainFailedSubmissionsRetention(
       and(
         isNotNull(failedSubmissions.replayedAt),
         lt(failedSubmissions.replayedAt, now - RETENTION_REPLAYED_MS),
+        tenantPredicate,
       ),
     )
     .returning({ id: failedSubmissions.id });
@@ -75,6 +81,7 @@ export async function drainFailedSubmissionsRetention(
       and(
         isNull(failedSubmissions.replayedAt),
         lt(failedSubmissions.createdAt, now - RETENTION_UNREPLAYED_MS),
+        tenantPredicate,
       ),
     )
     .returning({ id: failedSubmissions.id });
@@ -91,7 +98,7 @@ export async function drainFailedSubmissionsRetention(
   const backlogRows = await db
     .select({ createdAt: failedSubmissions.createdAt })
     .from(failedSubmissions)
-    .where(isNull(failedSubmissions.replayedAt));
+    .where(and(isNull(failedSubmissions.replayedAt), tenantPredicate));
   const pendingBacklog = backlogRows.length;
   const stale = backlogRows.filter((r) => Number(r.createdAt) < now - PENDING_BACKLOG_WARN_MS);
   if (stale.length > 0) {

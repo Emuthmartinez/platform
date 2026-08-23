@@ -7,6 +7,7 @@ import { z } from "zod";
 import { createCrudRouter, type CrudResource } from "@/public-api/crud-factory";
 import { MATERIAL_KEYS } from "@/lib/campaign-materials";
 import * as service from "@/services/campaign/admin-sites";
+import { requireTenantScope } from "@/middleware/tenant";
 
 const SITE_STATUSES = ["active", "paused", "full", "closed"] as const;
 
@@ -52,7 +53,7 @@ export const campaignSitesResource: CrudResource<
   ops: {
     list: () => service.listSites(),
     get: (id) => service.getSite(id),
-    create: (input) => service.createSite(input),
+    create: (input, req) => service.createSite(input, requireTenantScope(req)),
     update: (id, input) => service.updateSite(id, input),
     remove: (id) => service.removeSite(id),
   },

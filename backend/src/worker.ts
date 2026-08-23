@@ -58,6 +58,7 @@ import {
   unknownHostPayload,
 } from "./tenant/hostname.js";
 import { loadDeploymentByHostname } from "./tenant/resolve.js";
+import type { TenantScope } from "./tenant/scope.js";
 
 // El servidor se crea en ambito de modulo y NO se mueve dentro de fetch():
 // hacerlo daba 500/503 intermitentes porque cada isolate levantaba el suyo y la
@@ -143,9 +144,9 @@ async function syncEarthquakes(now: number): Promise<void> {
  * Tambien se relanza el fallo sin noRetry(): el geocode es idempotente
  * (geocode_cache por clave normalizada y UPDATE solo donde lat IS NULL).
  */
-async function geocodePending(): Promise<void> {
+async function geocodePending(scope: TenantScope): Promise<void> {
   try {
-    const r = await runGeocode();
+    const r = await runGeocode({ scope });
     console.log(
       `[cron:geocode] ubicaciones=${r.locations} nuevas=${r.geocodedNew} cache=${r.fromCache} fallidas=${r.failed} personas=${r.peopleUpdated}`,
     );
@@ -169,13 +170,13 @@ async function geocodePending(): Promise<void> {
  * RETURNING`), así que un reintento de Cloudflare es seguro y preferible a
  * dejar backlog sin estampar.
  */
-async function reconcilePeople(): Promise<void> {
+async function reconcilePeople(scope: TenantScope): Promise<void> {
   // Retención de failed_submissions (Ley 1581): mismo tick, fallo NO fatal —
   // un problema del drenaje no debe impedir estampar PRNs, y viceversa el
   // reintento de Cloudflare por un fallo del reconcile re-ejecuta un drenaje
   // idempotente sin daño.
   try {
-    const d = await drainFailedSubmissionsRetention();
+    const d = await drainFailedSubmissionsRetention(Date.now(), scope);
     if (d.replayedPurged > 0 || d.unreplayedPurged > 0 || d.pendingBacklog > 0) {
       console.log(
         `[cron:person-reconcile] failed_submissions: purgadas_reinyectadas=${d.replayedPurged} ` +
@@ -189,7 +190,7 @@ async function reconcilePeople(): Promise<void> {
     );
   }
   try {
-    const r = await reconcilePersonRecords();
+    const r = await reconcilePersonRecords({ scope });
     console.log(
       `[cron:person-reconcile] estampados=${r.stampedTotal} por_tipo=${JSON.stringify(r.stampedByType)}`,
     );
@@ -261,21 +262,38 @@ export default {
         // los alcanza. Se registran aqui para que el seam de despacho los vea.
         registerJobBindings(env);
         const now = controller.scheduledTime || Date.now();
-        const handlers = {
-          [CRON_EARTHQUAKES]: syncEarthquakes,
-          [CRON_GEOCODE]: geocodePending,
-          [CRON_PERSON_RECONCILE]: reconcilePeople,
-        };
         const errors: unknown[] = [];
-        for (const scope of listCronIncidentScopes()) {
+        // Earthquakes is a global job: run once, never enumerate incidents.
+        if (controller.cron === CRON_EARTHQUAKES) {
           try {
-            await dispatchCron(controller.cron, now, handlers, {
-              organizationId: scope.organizationId,
-              incidentId: scope.incidentId,
-              onUnhandled: persistUnhandledCron,
-            });
+            await dispatchCron(
+              controller.cron,
+              now,
+              { [CRON_EARTHQUAKES]: syncEarthquakes },
+              { onUnhandled: persistUnhandledCron },
+            );
           } catch (err) {
             errors.push(err);
+          }
+        } else {
+          for (const scope of listCronIncidentScopes()) {
+            try {
+              await dispatchCron(
+                controller.cron,
+                now,
+                {
+                  [CRON_GEOCODE]: () => geocodePending(scope),
+                  [CRON_PERSON_RECONCILE]: () => reconcilePeople(scope),
+                },
+                {
+                  organizationId: scope.organizationId,
+                  incidentId: scope.incidentId,
+                  onUnhandled: persistUnhandledCron,
+                },
+              );
+            } catch (err) {
+              errors.push(err);
+            }
           }
         }
         if (errors[0] !== undefined) throw errors[0];
@@ -308,8 +326,8 @@ export default {
               ? publishNeed.executeAtLocation(job.need, job.location)
               : publishNeed.execute(job.need);
           },
-          markCompleted: (jobId, result) =>
-            recordNeedPublicationState(jobId, "completed", { result }),
+          markCompleted: (jobId, result, scope) =>
+            recordNeedPublicationState(jobId, "completed", scope, { result }),
         });
         break;
       case "imports":
@@ -337,8 +355,8 @@ export default {
       case "imports-dlq":
       case "matcher-dlq":
         await consumeDlqBatch(batch, persistDeadLetter, {
-          onNeedDeadLetter: (job) =>
-            recordNeedPublicationState(job.jobId!, "failed", {
+          onNeedDeadLetter: (job, scope) =>
+            recordNeedPublicationState(job.jobId!, "failed", scope, {
               failedReason: "No se pudo publicar después de varios intentos.",
             }),
           onImportDeadLetter: async (job) => {

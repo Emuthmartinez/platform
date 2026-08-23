@@ -12,6 +12,7 @@ import {
 import { enqueuePatientImport } from "@/lib/queues";
 import { asyncHandler, rateLimit, validate } from "@/middleware";
 import { requireCapability } from "@/middleware/auth";
+import { requireTenantScope } from "@/middleware/tenant";
 import { getHospital } from "@/services/hospitals";
 import { getMinimaxOcrConfig } from "@/services/ocr/minimax-config";
 import {
@@ -254,6 +255,7 @@ patientImportsRouter.post(
 		if (!parsedHeaders.success) throw badRequest("Idempotency-Key inválido.");
 		const headers = parsedHeaders.data;
 		const parsed = req.body as z.infer<typeof createSchema>;
+		const scope = requireTenantScope(req);
 
 		if (
 			parsed.contentType !== undefined &&
@@ -291,6 +293,7 @@ patientImportsRouter.post(
 					idempotencyKey: headers["idempotency-key"],
 				},
 				req.user?.id ?? null,
+				scope,
 			);
 			const { reusedExisting, ...summary } = created;
 			if (reusedExisting) {
@@ -299,11 +302,14 @@ patientImportsRouter.post(
 			}
 			let ocrJobId: string;
 			try {
-				ocrJobId = await enqueuePatientImport({
-					importId: summary.id,
-					mode: "ocr",
-					imageUrl: parsed.imageUrl,
-				});
+				ocrJobId = await enqueuePatientImport(
+					{
+						importId: summary.id,
+						mode: "ocr",
+						imageUrl: parsed.imageUrl,
+					},
+					scope,
+				);
 			} catch (err) {
 				logUpstreamFailure("patient-imports.enqueue-ocr", err);
 				await service.markImportFailed(
@@ -360,6 +366,7 @@ patientImportsRouter.post(
 				defaultHospitalId: parsed.defaultHospitalId,
 			},
 			req.user?.id ?? null,
+			scope,
 		);
 		const { reusedExisting, ...summary } = created;
 		if (reusedExisting) {
@@ -378,6 +385,7 @@ patientImportsRouter.post(
 							defaultHospitalId: parsed.defaultHospitalId,
 						}
 					: { importId: summary.id, mode: "process" },
+				scope,
 			);
 		} catch (err) {
 			logUpstreamFailure("patient-imports.enqueue-process", err);
@@ -487,6 +495,7 @@ patientImportsRouter.post(
 	validate({ params: idParams }),
 	asyncHandler(async (req, res) => {
 		const id = (req.params as { id: string }).id;
+		const scope = requireTenantScope(req);
 		const summary = await service.getImport(id);
 		if (!summary) throw notFound("Lote de importación no encontrado.");
 		if (summary.status !== "failed" || summary.failedStage !== "process") {
@@ -505,7 +514,10 @@ patientImportsRouter.post(
 
 		let jobId: string;
 		try {
-			jobId = await enqueuePatientImport({ importId: id, mode: "process" });
+			jobId = await enqueuePatientImport(
+				{ importId: id, mode: "process" },
+				scope,
+			);
 		} catch (err) {
 			logUpstreamFailure("patient-imports.enqueue-retry", err);
 			await service.markImportFailed(
@@ -550,6 +562,7 @@ patientImportsRouter.post(
 	validate({ params: idParams }),
 	asyncHandler(async (req, res) => {
 		const id = (req.params as { id: string }).id;
+		const scope = requireTenantScope(req);
 		const summary = await service.getImport(id);
 		if (!summary) throw notFound("Lote de importación no encontrado.");
 
@@ -563,11 +576,14 @@ patientImportsRouter.post(
 		}
 		let jobId: string;
 		try {
-			jobId = await enqueuePatientImport({
-				importId: id,
-				mode: "apply",
-				actorId: req.user?.id ?? null,
-			});
+			jobId = await enqueuePatientImport(
+				{
+					importId: id,
+					mode: "apply",
+					actorId: req.user?.id ?? null,
+				},
+				scope,
+			);
 		} catch (err) {
 			logUpstreamFailure("patient-imports.enqueue-apply", err);
 			throw serviceUnavailable(

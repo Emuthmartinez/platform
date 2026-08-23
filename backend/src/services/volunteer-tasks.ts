@@ -11,6 +11,8 @@
 import { randomBytes, randomUUID } from "crypto";
 import { desc, eq, sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
+import { incidentOwnership } from "@/tenant/ownership";
+import type { TenantScope } from "@/tenant/scope";
 
 const { volunteerTasks, volunteerAssignments, volunteers } = schema;
 
@@ -72,7 +74,7 @@ function toTaskDTO(r: TaskRow): TaskDTO {
   };
 }
 
-export async function createTask(input: TaskInput): Promise<{ id: string }> {
+export async function createTask(input: TaskInput, scope: TenantScope): Promise<{ id: string }> {
   const db = await getDb();
   const id = randomUUID();
   const now = Date.now();
@@ -92,6 +94,7 @@ export async function createTask(input: TaskInput): Promise<{ id: string }> {
     status: "open",
     createdAt: now,
     updatedAt: now,
+    ...incidentOwnership(scope),
   });
   return { id };
 }
@@ -139,6 +142,7 @@ export type AssignResult =
 export async function assignVolunteer(
   taskId: string,
   volunteerId: string,
+  scope: TenantScope,
 ): Promise<AssignResult> {
   const db = await getDb();
   const task = await getTaskById(taskId);
@@ -165,6 +169,7 @@ export async function assignVolunteer(
     status: "offered",
     createdAt: now,
     updatedAt: now,
+    ...incidentOwnership(scope),
   });
   // open → assigned solo si sigue abierta (claim condicional).
   await db

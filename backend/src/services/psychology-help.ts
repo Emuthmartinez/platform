@@ -14,6 +14,8 @@ import { createHmac } from "crypto";
 import { eq, sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { env } from "@/config/env";
+import { incidentOwnership } from "@/tenant/ownership";
+import type { TenantScope } from "@/tenant/scope";
 
 const { clickCounters } = schema;
 
@@ -53,11 +55,11 @@ export async function getPsychologyHelpClickCount(): Promise<number> {
  * autenticado por secreto compartido en el route). SIN dedup por IP: las
  * llamadas vienen de servidores de Google y cada una es un envío real.
  */
-export async function incrementPsychologyHelpFromForm(): Promise<number> {
+export async function incrementPsychologyHelpFromForm(scope: TenantScope): Promise<number> {
   const db = await getDb();
   await db
     .insert(clickCounters)
-    .values({ key: PSYCHOLOGY_HELP_KEY, count: 0 })
+    .values({ key: PSYCHOLOGY_HELP_KEY, count: 0, ...incidentOwnership(scope) })
     .onConflictDoNothing({ target: clickCounters.key });
   const result = await db.execute(sql`
     UPDATE click_counters SET count = count + 1
@@ -73,12 +75,14 @@ export async function incrementPsychologyHelpFromForm(): Promise<number> {
 /** Incrementa el contador una vez por IP (hash). Devuelve el total resultante. */
 export async function incrementPsychologyHelpClick(
   ipKey: string,
+  scope: TenantScope,
 ): Promise<number> {
   const db = await getDb();
+  const ownership = incidentOwnership(scope);
   // Aseguramos primero que la fila base del contador exista.
   await db
     .insert(clickCounters)
-    .values({ key: PSYCHOLOGY_HELP_KEY, count: 0 })
+    .values({ key: PSYCHOLOGY_HELP_KEY, count: 0, ...ownership })
     .onConflictDoNothing({ target: clickCounters.key });
 
   // Dedup por IP + incremento + lectura del total en UNA sentencia (CTE atómico):
@@ -86,8 +90,8 @@ export async function incrementPsychologyHelpClick(
   //  - IP repite → `ins` vacío → `upd` no corre → caemos al total actual.
   const result = await db.execute(sql`
     WITH ins AS (
-      INSERT INTO click_counter_dedup (counter_key, ip_hash, created_at)
-      VALUES (${PSYCHOLOGY_HELP_KEY}, ${ipKey}, ${Date.now()})
+      INSERT INTO click_counter_dedup (counter_key, ip_hash, created_at, organization_id, incident_id)
+      VALUES (${PSYCHOLOGY_HELP_KEY}, ${ipKey}, ${Date.now()}, ${ownership.organizationId}, ${ownership.incidentId})
       ON CONFLICT DO NOTHING
       RETURNING counter_key
     ),

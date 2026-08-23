@@ -14,7 +14,14 @@
  * Portado tal cual desde lib/cache.ts del app Next previo (mismo comportamiento).
  */
 
+import { createHash } from "node:crypto";
+
 type Entry<T> = { at: number; value: T };
+
+/** Hash search/filter values before they enter a cache key. */
+export function cacheParamDigest(value: string): string {
+  return createHash("sha256").update(value).digest("hex").slice(0, 16);
+}
 
 /** Tope de claves para acotar memoria con endpoints parametrizados (LRU simple). */
 const MAX_ENTRIES = 500;

@@ -3,6 +3,7 @@ import express from "express";
 import request from "supertest";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { volunteerCodeDbMock } from "./helpers/volunteer-code-db";
+import { colombiaTenantScope } from "@/lib/colombia-tenant";
 
 const dbMocks = vi.hoisted(() => ({
   volunteers: [] as Array<Record<string, unknown>>,
@@ -25,6 +26,10 @@ beforeAll(async () => {
   const { errorHandler } = await import("@/middleware");
   app = express();
   app.use(express.json());
+  app.use((req, _res, next) => {
+    req.tenantScope = colombiaTenantScope();
+    next();
+  });
   app.use("/api/voluntariado", voluntariadoRouter);
   app.use("/api/reports", reportsRouter);
   app.use(errorHandler);
@@ -50,7 +55,7 @@ describe("código único en el registro (service)", () => {
       zone: "DEMO-Pereira",
       availability: "DEMO-fines de semana",
       offerTypes: ["persona"],
-    });
+    }, colombiaTenantScope());
 
     expect(created.code).toMatch(/^\d{6}$/);
     expect(dbMocks.volunteers[0]?.code).toBe(created.code);
@@ -74,7 +79,7 @@ describe("código único en el registro (service)", () => {
       zone: "DEMO-Pereira",
       availability: "DEMO-mañana",
       offerTypes: ["persona"],
-    });
+    }, colombiaTenantScope());
 
     expect(created.code).toMatch(/^\d{6}$/);
     expect(dbMocks.volunteers).toHaveLength(1);
@@ -98,7 +103,7 @@ describe("código único en el registro (service)", () => {
         zone: "DEMO-Pereira",
         availability: "DEMO-tarde",
         offerTypes: ["persona"],
-      }),
+      }, colombiaTenantScope()),
     ).rejects.toBe(idCollision);
     expect(dbMocks.volunteers).toHaveLength(0);
   });

@@ -8,6 +8,8 @@
 import { desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { materialShipments, DEFAULT_CAMPAIGN, type MaterialLine } from "@/db/campaign-schema";
+import { incidentOwnership } from "@/tenant/ownership";
+import type { TenantScope } from "@/tenant/scope";
 
 export interface ShipmentDTO {
   id: string;
@@ -84,7 +86,7 @@ export async function getShipment(id: string): Promise<ShipmentDTO | null> {
   return rows[0] ? toDTO(rows[0]) : null;
 }
 
-export async function createShipment(input: ShipmentInput): Promise<ShipmentDTO> {
+export async function createShipment(input: ShipmentInput, scope: TenantScope): Promise<ShipmentDTO> {
   const db = await getDb();
   const id = crypto.randomUUID();
   const now = Date.now();
@@ -102,6 +104,7 @@ export async function createShipment(input: ShipmentInput): Promise<ShipmentDTO>
     arrivedAt: input.arrivedAt ?? null,
     createdAt: now,
     updatedAt: now,
+    ...incidentOwnership(scope),
   });
   const created = await getShipment(id);
   if (!created) throw new Error("No se pudo leer el lote recién creado.");

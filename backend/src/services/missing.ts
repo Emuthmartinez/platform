@@ -20,6 +20,9 @@ import {
 } from "@/lib/r2";
 import { isAllowedImageDataUrl, parseImageDataUri } from "@/lib/image";
 import { invalidate } from "@/lib/cache";
+import { incidentOwnership } from "@/tenant/ownership";
+import type { TenantScope } from "@/tenant/scope";
+import { colombiaTenantScope } from "@/lib/colombia-tenant";
 import { ensurePrn, ensurePrns, enqueueMatcherSweep } from "@/services/person-records";
 import { createStatusSignal } from "@/services/record-signals";
 
@@ -344,7 +347,10 @@ export async function listMissing(
   return execRows<Row>(res).map(rowToPerson);
 }
 
-export async function addMissing(input: CreateInput): Promise<MissingDTO> {
+export async function addMissing(
+  input: CreateInput,
+  scope: TenantScope,
+): Promise<MissingDTO> {
   const id = crypto.randomUUID();
   const name = (input.name ?? "").trim().slice(0, MAX_NAME);
   const age = normalizeAge(input.age);
@@ -387,6 +393,7 @@ export async function addMissing(input: CreateInput): Promise<MissingDTO> {
     status,
     resolutionNote,
     resolvedAt,
+    ...incidentOwnership(scope),
   });
   invalidate();
 
@@ -398,8 +405,8 @@ export async function addMissing(input: CreateInput): Promise<MissingDTO> {
   // registro nunca aparece en listUnstamped (ya tiene PRN) y el reconcile
   // jamás lo barre, así que un match contra un reporte existente no genera
   // propuesta hasta el próximo cambio de document_hash.
-  const prn = await ensurePrn("missing_report", id);
-  if (prn) await enqueueMatcherSweep([prn]);
+  const prn = await ensurePrn("missing_report", id, scope);
+  if (prn) await enqueueMatcherSweep([prn], scope);
 
   return {
     id,
@@ -462,7 +469,9 @@ export async function markMissingFound(
   return rows.length > 0 ? rowToPerson(rows[0]!) : null;
 }
 
-export async function restoreMissing(id: string): Promise<boolean> {
+export async function restoreMissing(
+  id: string,
+): Promise<boolean> {
   // Escape `sql` por el tipo unión de drivers. Misma semántica que el UPDATE ...
   // RETURNING id previo.
   const db = await getDb();
@@ -591,7 +600,10 @@ export async function getMissingResolutionPhoto(
   return dataUrlToPhoto(dataUrl);
 }
 
-export async function removeMissing(id: string): Promise<boolean> {
+export async function removeMissing(
+  id: string,
+  scope: TenantScope = colombiaTenantScope(),
+): Promise<boolean> {
   const db = await getDb();
   const rows = await db
     .select({
@@ -621,6 +633,7 @@ export async function removeMissing(id: string): Promise<boolean> {
       externalId: row.externalId,
       reason: "admin_delete",
       createdAt: Date.now(),
+      ...incidentOwnership(scope),
     })
     .onConflictDoNothing();
 
@@ -961,6 +974,7 @@ const EXTERNAL_COLS = [
   "id", "name", "age", "description", "last_seen", "contact",
   "photo_external_url", "external_id", "source", "source_url",
   "status", "resolution_note", "resolved_at", "created_at",
+  "organization_id", "incident_id",
 ] as const;
 
 /**
@@ -1006,6 +1020,7 @@ const CONFLICT_UPDATE_SET = `
  */
 function buildExternalRow(
   input: ExternalMissingInput,
+  scope: TenantScope,
 ): { key: string; values: unknown[]; status: MissingStatus; resolutionNote: string | null } | null {
   const externalId = (input.externalId ?? "").trim();
   const source = clipText(input.source, 120);
@@ -1035,6 +1050,8 @@ function buildExternalRow(
     resolutionNote,
     status === "found" ? (input.resolvedAt ?? Date.now()) : null,
     input.createdAt ?? Date.now(),
+    scope.organizationId,
+    scope.incidentId,
   ];
   return { key: JSON.stringify([source, externalId]), values, status, resolutionNote };
 }
@@ -1075,13 +1092,14 @@ function buildExternalRow(
  */
 export async function upsertExternalMissingBatch(
   people: ExternalMissingInput[],
-  opts: { batchSize?: number } = {},
+  opts: { batchSize?: number; scope?: TenantScope } = {},
 ): Promise<BatchUpsertResult> {
   const result: BatchUpsertResult = { inserted: 0, updated: 0, skipped: 0, errors: 0 };
   const batchSize = Math.min(
     Math.max(Math.trunc(opts.batchSize ?? DEFAULT_BATCH_SIZE), 1),
     MAX_BATCH_SIZE,
   );
+  const scope = opts.scope ?? colombiaTenantScope();
 
   const db = await getDb();
   const suppressionRows = await db
@@ -1101,7 +1119,7 @@ export async function upsertExternalMissingBatch(
     { values: unknown[]; status: MissingStatus; resolutionNote: string | null }
   >();
   for (const person of people) {
-    const row = buildExternalRow(person);
+    const row = buildExternalRow(person, scope);
     if (!row) {
       result.skipped++;
       continue;
@@ -1167,9 +1185,9 @@ export async function upsertExternalMissingBatch(
     // llamada, un solo matcher sweep con el conjunto resultante de PRNs.
     // Best-effort (ensurePrns nunca lanza): lo que quede sin PRN aquí lo
     // recoge reconcilePersonRecords en su próxima corrida.
-    const prnById = await ensurePrns("missing_report", upsertedIds);
+    const prnById = await ensurePrns("missing_report", upsertedIds, scope);
     const prns = [...new Set(prnById.values())];
-    if (prns.length > 0) await enqueueMatcherSweep(prns);
+    if (prns.length > 0) await enqueueMatcherSweep(prns, scope);
 
     // R25/R26 — señal de status DESPUÉS del batch de PRNs, usando el mapa que
     // devolvió: sin PRN para esa fila (caso raro, ensurePrns falló) la
@@ -1183,10 +1201,13 @@ export async function upsertExternalMissingBatch(
         source: pending.source,
         claimedStatus: pending.claimedStatus,
         resolutionNote: pending.resolutionNote,
+        scope,
       });
     }
   }
 
-  if (result.inserted > 0 || result.updated > 0) invalidate();
+  if (result.inserted > 0 || result.updated > 0) {
+    invalidate();
+  }
   return result;
 }

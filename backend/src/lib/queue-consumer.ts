@@ -16,9 +16,12 @@ import {
   redactQueuePayload,
   type ImportJobBody,
   type MatcherJobBody,
+  type QueueDecodeSuccess,
 } from "@/lib/queue-protocol";
 import { lookupQueueKind, type QueueKind } from "@/lib/queue-registry";
 import type { NeedPublicationJob } from "@/modules/needs/infrastructure/needs-publication-queue";
+import { incidentAuditOwnership, globalAuditOwnership, tenantScopeFromIds } from "@/tenant/ownership";
+import type { TenantScope } from "@/tenant/scope";
 
 export type { QueueKind } from "@/lib/queue-registry";
 export type { ImportJobBody, MatcherJobBody } from "@/lib/queue-protocol";
@@ -50,7 +53,14 @@ export interface NeedsConsumerDeps {
   /** Publica una necesidad (inyectable para tests; en prod, publishNeed). */
   publish(job: NeedPublicationJob): Promise<unknown>;
   /** Confirma el resultado durable para el status público de Queues. */
-  markCompleted?(jobId: string, result: unknown): Promise<void>;
+  markCompleted?(jobId: string, result: unknown, scope: TenantScope): Promise<void>;
+}
+
+function scopeFromDecode(decoded: QueueDecodeSuccess<unknown>): TenantScope {
+  return tenantScopeFromIds({
+    organizationId: decoded.organizationId,
+    incidentId: decoded.incidentId,
+  });
 }
 
 function retryInvalid(message: IncomingQueueMessage, family: string, reason: string): void {
@@ -83,7 +93,7 @@ export async function consumeNeedsBatch(
     }
     if (job.jobId && deps.markCompleted) {
       try {
-        await deps.markCompleted(job.jobId, result);
+        await deps.markCompleted(job.jobId, result, scopeFromDecode(decoded));
       } catch (err) {
         // La publicación externa ya ocurrió: reintentar el mensaje podría
         // duplicarla. Dejamos el fallo observable sin repetir el side effect.
@@ -180,6 +190,12 @@ const DLQ_PERSIST_ATTEMPTS = 3;
  */
 export async function persistDeadLetter(entry: DeadLetterEntry): Promise<void> {
   const errorSummary = extractPreservedErrorSummary(entry.payload);
+  const needsDecoded = decodeNeedsJob(entry.payload);
+  const importDecoded = needsDecoded.ok ? needsDecoded : decodeImportJob(entry.payload);
+  const decoded = importDecoded.ok ? importDecoded : decodeMatcherJob(entry.payload);
+  const ownership = decoded.ok
+    ? incidentAuditOwnership(scopeFromDecode(decoded))
+    : globalAuditOwnership();
   await getDb()
     .insert(schema.auditLog)
     .values({
@@ -196,6 +212,7 @@ export async function persistDeadLetter(entry: DeadLetterEntry): Promise<void> {
       },
       ipHash: null,
       createdAt: Date.now(),
+      ...ownership,
     });
 }
 
@@ -224,7 +241,7 @@ async function persistBounded(
 
 export interface DlqHooks {
   /** Marca terminalmente fallida una publicación de necesidades. */
-  onNeedDeadLetter?(job: NeedPublicationJob): Promise<void>;
+  onNeedDeadLetter?(job: NeedPublicationJob, scope: TenantScope): Promise<void>;
   /**
    * Carta muerta de un job de importación: espejo del "último intento" del
    * processor BullMQ — marca el lote como fallido para que el panel lo
@@ -274,7 +291,10 @@ export async function consumeDlqBatch(
       const needDecoded = decodeNeedsJob(message.body);
       if (needDecoded.ok && needDecoded.job.jobId && needDecoded.job.need) {
         try {
-          await hooks.onNeedDeadLetter(needDecoded.job);
+          await hooks.onNeedDeadLetter(
+            needDecoded.job,
+            scopeFromDecode(needDecoded),
+          );
         } catch (err) {
           console.error(
             `[queue:dlq] no se pudo marcar fallida la publicación ${needDecoded.job.jobId}:`,

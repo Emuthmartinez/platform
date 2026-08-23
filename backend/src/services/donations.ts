@@ -12,6 +12,8 @@
  */
 import { sql, desc, eq } from "drizzle-orm";
 import { getDb, schema } from "@/db";
+import { incidentOwnership } from "@/tenant/ownership";
+import type { TenantScope } from "@/tenant/scope";
 
 const { donations } = schema;
 
@@ -154,7 +156,7 @@ export async function recordDonation(input: {
   amountCents: number;
   ipHash?: string | null;
   userAgent?: string | null;
-}): Promise<{ id: string }> {
+}, scope: TenantScope): Promise<{ id: string }> {
   const id = crypto.randomUUID();
   const db = await getDb();
   await db.insert(donations).values({
@@ -165,6 +167,7 @@ export async function recordDonation(input: {
     userAgent: input.userAgent ?? null,
     createdAt: Date.now(),
     status: "intent",
+    ...incidentOwnership(scope),
   });
   return { id };
 }

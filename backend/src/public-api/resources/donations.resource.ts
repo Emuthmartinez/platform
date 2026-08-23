@@ -12,6 +12,7 @@
 import { z } from "zod";
 import { createCrudRouter, type CrudResource } from "@/public-api/crud-factory";
 import * as service from "@/services/donations";
+import { requireTenantScope } from "@/middleware/tenant";
 
 const createSchema = z.object({
   name: z.string().trim().min(1, "Indica un nombre.").max(120),
@@ -43,11 +44,11 @@ export const donationsResource: CrudResource<
   ops: {
     list: () => service.listRecentDonations(),
     get: (id) => service.getDonationById(id),
-    create: async (input) => {
+    create: async (input, req) => {
       const { id } = await service.recordDonation({
         name: input.name,
         amountCents: input.amountCents,
-      });
+      }, requireTenantScope(req));
       // recordDonation solo devuelve {id}; releemos el DTO allowlist para el 201.
       const dto = await service.getDonationById(id);
       if (!dto) throw new Error("No se pudo leer la donación recién creada.");

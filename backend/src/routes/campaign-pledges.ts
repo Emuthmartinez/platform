@@ -18,6 +18,7 @@ import { serviceUnavailable } from "@/lib/errors";
 import { CAMPAIGN_MATERIALS, MATERIAL_KEYS } from "@/lib/campaign-materials";
 import { MAX_REPORT_PHOTO_CHARS } from "@/services/report-types";
 import { pledges } from "@/services/campaign";
+import { requireTenantScope } from "@/middleware/tenant";
 
 export const campaignPledgesRouter = Router();
 
@@ -103,7 +104,7 @@ campaignPledgesRouter.post(
         photo: body.photo ?? null,
         source: body.source ?? "web",
         ipHash: hashIp(req),
-      });
+      }, requireTenantScope(req));
       res.status(200).json({
         ok: true,
         code: pledge.code,
@@ -112,7 +113,7 @@ campaignPledgesRouter.post(
       });
     } catch (err) {
       logDbFailure("campaign.pledge", err);
-      await captureFailedSubmission("campaign_pledges", body, err);
+      await captureFailedSubmission("campaign_pledges", body, err, req.tenantScope);
       throw serviceUnavailable("No se pudo guardar el compromiso.");
     }
   }),

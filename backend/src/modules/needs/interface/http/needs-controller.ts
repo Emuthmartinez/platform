@@ -7,6 +7,7 @@ import {
   enqueueNeedPublication,
   getNeedPublicationState,
 } from "../../infrastructure/needs-publication-queue";
+import { requireTenantScope } from "@/middleware/tenant";
 
 // Origen del `author`, fijado por el servidor (nunca se acepta del cliente).
 // Configúralo con el dominio público real de tu propio despliegue.
@@ -72,6 +73,7 @@ export async function enqueueNeedHandler(req: Request, res: Response): Promise<v
   try {
     const jobId = await enqueueNeedPublication(
       { need: toNewNeed(req.body as PublishNeedInput) },
+      requireTenantScope(req),
       key,
     );
     res.status(202).set("Cache-Control", "no-store").json({ queued: true, jobId });
@@ -84,7 +86,10 @@ export async function enqueueNeedHandler(req: Request, res: Response): Promise<v
 
 export async function needStatusHandler(req: Request, res: Response): Promise<void> {
   try {
-    const state = await getNeedPublicationState(String(req.params.jobId));
+    const state = await getNeedPublicationState(
+      String(req.params.jobId),
+      requireTenantScope(req),
+    );
     if (!state) {
       throw notFound("Publicación no encontrada.");
     }

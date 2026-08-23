@@ -20,6 +20,7 @@ import { randomUUID } from "crypto";
 import { and, eq, or } from "drizzle-orm";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import "./helpers";
+import { colombiaTenantScope } from "@/lib/colombia-tenant";
 
 let db: typeof import("@/db");
 let personRecords: typeof import("@/services/person-records");
@@ -442,7 +443,10 @@ describe("matcher — el sweep se dispara en creación (finding #6, AE2/U8)", ()
     personRecords.takeMatcherSweepCalls(); // drena residuo de otros tests de este archivo
     const t = token();
 
-    const created = await missingService.addMissing({ name: `DEMO Sweep Missing ${t}` });
+    const created = await missingService.addMissing(
+      { name: `DEMO Sweep Missing ${t}` },
+      colombiaTenantScope(),
+    );
     // ensurePrn es idempotente: la segunda llamada solo LEE el PRN ya
     // estampado por addMissing, sin volver a encolar un sweep.
     const prn = await personRecords.ensurePrn("missing_report", created.id);
@@ -460,7 +464,7 @@ describe("matcher — el sweep se dispara en creación (finding #6, AE2/U8)", ()
     const created = await patientsService.createPatient({
       hospitalId,
       name: `DEMO Sweep Patient ${t}`,
-    });
+    }, colombiaTenantScope());
     const prn = await personRecords.ensurePrn("hospital_patient", created.id);
     expect(prn).not.toBeNull();
 

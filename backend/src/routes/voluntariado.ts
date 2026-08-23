@@ -7,6 +7,7 @@ import * as service from "@/services/volunteer-tasks";
 import * as checkins from "@/services/volunteer-checkins";
 import { getVolunteerByCode } from "@/services/volunteers";
 import { isValidPhotoDataUrl, MAX_REPORT_PHOTO_CHARS } from "@/services/reports";
+import { requireTenantScope } from "@/middleware/tenant";
 
 export const voluntariadoRouter = Router();
 
@@ -75,7 +76,7 @@ voluntariadoRouter.post(
       availability: body.availability,
       talent: body.talent,
       area: body.area,
-    });
+    }, requireTenantScope(req));
     if (!created) {
       throw badRequest("El código no es válido. Revísalo e inténtalo de nuevo.");
     }

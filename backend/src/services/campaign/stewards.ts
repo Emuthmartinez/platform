@@ -9,6 +9,8 @@ import { createHash } from "crypto";
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { campaignSiteStewards, campaignSites } from "@/db/campaign-schema";
+import { incidentOwnership } from "@/tenant/ownership";
+import type { TenantScope } from "@/tenant/scope";
 
 export interface StewardIdentity {
   id: string;
@@ -67,7 +69,7 @@ export async function findStewardByToken(token: string): Promise<StewardIdentity
 export async function createSteward(input: {
   siteId: string;
   displayName: string;
-}): Promise<{ id: string; token: string }> {
+}, scope: TenantScope): Promise<{ id: string; token: string }> {
   const db = await getDb();
   const id = crypto.randomUUID();
   const token = generateStewardToken();
@@ -80,6 +82,7 @@ export async function createSteward(input: {
     active: true,
     createdAt: now,
     updatedAt: now,
+    ...incidentOwnership(scope),
   });
   return { id, token };
 }

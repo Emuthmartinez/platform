@@ -1,5 +1,6 @@
 import { getDb, schema } from "@/db";
 import { CRON_EXPRESSIONS } from "@/services/cron-jobs";
+import { globalAuditOwnership } from "@/tenant/ownership";
 
 /** Durable alert for a Cron expression this Worker does not handle. */
 export async function persistUnhandledCron(cron: string): Promise<void> {
@@ -16,5 +17,6 @@ export async function persistUnhandledCron(cron: string): Promise<void> {
       },
       ipHash: null,
       createdAt: Date.now(),
+      ...globalAuditOwnership(),
     });
 }

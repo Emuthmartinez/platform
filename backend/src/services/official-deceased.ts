@@ -6,6 +6,8 @@ import {
 	MAX_IMPORT_ROWS,
 	parseImportGrid,
 } from "@/services/patient-import-parse";
+import { incidentOwnership } from "@/tenant/ownership";
+import type { TenantScope } from "@/tenant/scope";
 
 const { officialDeceasedLists, officialDeceasedRecords } = schema;
 
@@ -238,6 +240,7 @@ function stableRecordId(
 export async function importOfficialDeceased(
 	input: OfficialDeceasedImportInput,
 	actorId: string | null,
+	scope: TenantScope,
 ): Promise<OfficialDeceasedImportResult> {
 	const preview = previewOfficialDeceasedImport(input.rows);
 	if (preview.validRows === 0 || preview.invalidRows > 0) {
@@ -252,6 +255,7 @@ export async function importOfficialDeceased(
 	const listId = stableListId(sourceUrl);
 	const now = Date.now();
 	const db = getDb();
+	const ownership = incidentOwnership(scope);
 	await db
 		.insert(officialDeceasedLists)
 		.values({
@@ -263,6 +267,7 @@ export async function importOfficialDeceased(
 			createdBy: actorId,
 			createdAt: now,
 			updatedAt: now,
+			...ownership,
 		})
 		.onConflictDoUpdate({
 			target: officialDeceasedLists.sourceUrl,
@@ -280,6 +285,7 @@ export async function importOfficialDeceased(
 		...row,
 		createdAt: now,
 		updatedAt: now,
+		...ownership,
 	}));
 	const existingIds = new Set<string>();
 	const CHUNK_SIZE = 250;

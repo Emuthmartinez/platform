@@ -17,6 +17,7 @@ import { and, eq } from "drizzle-orm";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import "./helpers";
 import { generatePrn } from "@/lib/prn";
+import { colombiaTenantScope } from "@/lib/colombia-tenant";
 
 let db: typeof import("@/db");
 let service: typeof import("@/services/person-records");
@@ -125,7 +126,10 @@ describe("ensurePrn", () => {
 
 describe("ganchos de creación (best-effort)", () => {
   it("crear un reporte de desaparecido estampa un registro record_type=missing_report", async () => {
-    const created = await missingService.addMissing({ name: "DEMO Persona Uno" });
+    const created = await missingService.addMissing(
+      { name: "DEMO Persona Uno" },
+      colombiaTenantScope(),
+    );
     const row = await registryRowFor("missing_report", created.id);
     expect(row).not.toBeNull();
     expect(row?.prn).toMatch(/^TC-/);
@@ -136,7 +140,7 @@ describe("ganchos de creación (best-effort)", () => {
     const created = await patientsService.createPatient({
       hospitalId,
       name: "DEMO Paciente Uno",
-    });
+    }, colombiaTenantScope());
     const row = await registryRowFor("hospital_patient", created.id);
     expect(row).not.toBeNull();
     expect(row?.prn).toMatch(/^TC-/);

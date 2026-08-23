@@ -7,6 +7,8 @@
  *   ALLOW_STAGING_DEMO_SEED=1 DATABASE_URL=… npx tsx src/seed/volunteers-demo.ts
  */
 import { getDb, schema } from "@/db";
+import { colombiaTenantScope } from "@/lib/colombia-tenant";
+import { incidentOwnership } from "@/tenant/ownership";
 import { buildFixtures, DEMO_PREFIX } from "./fixtures";
 
 function assertStagingDemoAllowed(): void {
@@ -31,7 +33,11 @@ async function main(): Promise<void> {
   assertStagingDemoAllowed();
   const db = getDb();
   const { volunteers } = buildFixtures(Date.now());
-  await db.insert(schema.volunteers).values(volunteers).onConflictDoNothing();
+  const ownership = incidentOwnership(colombiaTenantScope());
+  await db
+    .insert(schema.volunteers)
+    .values(volunteers.map((row) => ({ ...row, ...ownership })))
+    .onConflictDoNothing();
   console.log(`[seed:volunteers-demo] insertados/omitidos ${volunteers.length} DEMO-vol-*`);
 }
 

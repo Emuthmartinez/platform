@@ -17,7 +17,8 @@ import {
 	validateRow,
 } from "@/services/patient-import-logic";
 import type { PatientCondition, PatientStatus } from "@/services/patients";
-import { loadHeader, type StagingRow, toRowDTO } from "./internal";
+import { loadHeader, type StagingRow, tenantScopeFromImportHeader, toRowDTO } from "./internal";
+import { incidentOwnership } from "@/tenant/ownership";
 import {
 	DEDUP_ACCEPTED_REASON,
 	DEDUP_STATUS_ACCEPTED,
@@ -692,6 +693,7 @@ export async function editImportRow(
 						promptVersion: header.ocrPromptVersion ?? "",
 						correctedBy: actorId,
 						correctedAt: Date.now(),
+						...incidentOwnership(tenantScopeFromImportHeader(header)),
 					})),
 				)
 				.onConflictDoNothing();

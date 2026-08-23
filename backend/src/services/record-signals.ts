@@ -20,8 +20,11 @@
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { conflict, notFound } from "@/lib/errors";
+import { colombiaTenantScope } from "@/lib/colombia-tenant";
 import { resolvePrn } from "@/services/person-records";
 import { loadDisplayFields, type RecordDisplay } from "@/services/person-clusters";
+import { incidentOwnership } from "@/tenant/ownership";
+import type { TenantScope } from "@/tenant/scope";
 
 const { recordStatusSignals } = schema;
 
@@ -35,6 +38,7 @@ export interface CreateStatusSignalInput {
   resolutionNote?: string | null;
   /** Solo 'status_report' hoy (KTD19: precursor de intake_items). */
   kind?: string;
+  scope?: TenantScope;
 }
 
 /**
@@ -54,15 +58,19 @@ export async function createStatusSignal(input: CreateStatusSignalInput): Promis
     const db = getDb();
     const now = Date.now();
     const kind = input.kind ?? "status_report";
+    const ownership = incidentOwnership(input.scope ?? colombiaTenantScope());
     const payload = JSON.stringify({
       resolutionNote: input.resolutionNote ?? null,
       reportedAt: now,
     });
     await db.execute(sql`
-      INSERT INTO record_status_signals (id, prn, source, kind, claimed_status, payload, status, created_at)
-      VALUES (${crypto.randomUUID()}, ${input.prn}, ${input.source}, ${kind}, ${input.claimedStatus}, ${payload}::jsonb, 'pending', ${now})
+      INSERT INTO record_status_signals (id, prn, source, kind, claimed_status, payload, status, created_at, organization_id, incident_id)
+      VALUES (${crypto.randomUUID()}, ${input.prn}, ${input.source}, ${kind}, ${input.claimedStatus}, ${payload}::jsonb, 'pending', ${now}, ${ownership.organizationId}, ${ownership.incidentId})
       ON CONFLICT (prn, kind, claimed_status) WHERE status = 'pending'
-      DO UPDATE SET payload = EXCLUDED.payload
+      DO UPDATE SET
+        payload = EXCLUDED.payload,
+        organization_id = COALESCE(record_status_signals.organization_id, EXCLUDED.organization_id),
+        incident_id = COALESCE(record_status_signals.incident_id, EXCLUDED.incident_id)
     `);
   } catch (err) {
     console.error(

@@ -70,7 +70,14 @@ describe("consumeNeedsBatch", () => {
       { publish, markCompleted },
     );
     expect(publish).toHaveBeenCalledTimes(1);
-    expect(markCompleted).toHaveBeenCalledWith("need-demo-1", { ok: true });
+    expect(markCompleted).toHaveBeenCalledWith(
+      "need-demo-1",
+      { ok: true },
+      expect.objectContaining({
+        organizationId: "org_mallanet",
+        incidentId: "inc_terremoto_colombia_2026",
+      }),
+    );
     expect(message.acked).toBe(true);
     expect(message.retried).toBe(false);
   });
@@ -266,11 +273,18 @@ describe("consumeDlqBatch", () => {
       { onNeedDeadLetter },
     );
 
-    expect(onNeedDeadLetter).toHaveBeenCalledWith({
-      jobId: "need-dead-1",
-      need: { title: "Demo" },
-      location: undefined,
-    });
+    expect(onNeedDeadLetter).toHaveBeenCalledWith(
+      {
+        jobId: "need-dead-1",
+        need: { title: "Demo" },
+        location: undefined,
+      },
+      expect.objectContaining({
+        organizationId: "org_mallanet",
+        incidentId: "inc_terremoto_colombia_2026",
+        hostname: "internal",
+      }),
+    );
     expect(message.acked).toBe(true);
   });
 });

@@ -31,6 +31,21 @@ describe("decodeNeedsJob", () => {
     expect(decoded.legacy).toBe(true);
   });
 
+  it("prefers tenant ids on a still-v1 body over the Colombia fallback", () => {
+    const decoded = decodeNeedsJob({
+      jobId: "need-other-v1",
+      need: { title: "Demo" },
+      organizationId: "org_other",
+      incidentId: "inc_other",
+    });
+    expect(decoded.ok).toBe(true);
+    if (!decoded.ok) return;
+    expect(decoded.legacy).toBe(true);
+    expect(decoded.schemaVersion).toBe(1);
+    expect(decoded.organizationId).toBe("org_other");
+    expect(decoded.incidentId).toBe("inc_other");
+  });
+
   it("unwraps a v2 envelope and keeps a foreign tenant", () => {
     const decoded = decodeNeedsJob(QUEUE_PROTOCOL_FIXTURES.needsV2OtherTenant);
     expect(decoded.ok).toBe(true);

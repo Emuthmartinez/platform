@@ -6,6 +6,7 @@ import { z } from "zod";
 import { createCrudRouter, type CrudResource } from "@/public-api/crud-factory";
 import { MATERIAL_KEYS } from "@/lib/campaign-materials";
 import * as service from "@/services/campaign/admin-shipments";
+import { requireTenantScope } from "@/middleware/tenant";
 
 const SHIPMENT_STATUSES = ["loading", "in_transit", "delivered", "cancelled"] as const;
 
@@ -53,7 +54,8 @@ export const campaignShipmentsResource: CrudResource<
   ops: {
     list: () => service.listShipments(),
     get: (id) => service.getShipment(id),
-    create: (input) => service.createShipment({ ...input, items: input.items }),
+    create: (input, req) =>
+      service.createShipment({ ...input, items: input.items }, requireTenantScope(req)),
     update: (id, input) => service.updateShipment(id, input),
     remove: (id) => service.removeShipment(id),
   },

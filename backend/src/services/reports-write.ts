@@ -11,6 +11,8 @@ import {
   type UpdateReportInput,
 } from "@/services/report-types";
 import { getReportById } from "@/services/reports-read";
+import { incidentOwnership } from "@/tenant/ownership";
+import type { TenantScope } from "@/tenant/scope";
 
 const { reports } = schema;
 
@@ -44,7 +46,10 @@ function createReport(input: CreateReportInput): {
   };
 }
 
-export async function addReport(input: CreateReportInput): Promise<ReportDTO> {
+export async function addReport(
+  input: CreateReportInput,
+  scope: TenantScope,
+): Promise<ReportDTO> {
   const { report, photo } = createReport(input);
   let stored = photo;
   let migratedAt: number | null = null;
@@ -68,6 +73,7 @@ export async function addReport(input: CreateReportInput): Promise<ReportDTO> {
     photoMigratedAt: migratedAt,
     volunteerId: input.volunteerId ?? null,
     createdAt: report.createdAt,
+    ...incidentOwnership(scope),
   });
   invalidate();
   return report;
@@ -76,18 +82,20 @@ export async function addReport(input: CreateReportInput): Promise<ReportDTO> {
 export async function confirmReport(
   id: string,
   ipKey: string,
+  scope: TenantScope,
 ): Promise<
   | { status: "confirmed"; confirmations: number }
   | { status: "duplicate" }
   | { status: "not-found" }
 > {
   const db = await getDb();
+  const ownership = incidentOwnership(scope);
   const res = (await db.execute(sql`
     WITH target AS (
       SELECT id FROM reports WHERE id = ${id}
     ), ins AS (
-      INSERT INTO report_confirmations (report_id, ip_hash, created_at)
-      SELECT id, ${ipKey}, ${Date.now()} FROM target
+      INSERT INTO report_confirmations (report_id, ip_hash, created_at, organization_id, incident_id)
+      SELECT id, ${ipKey}, ${Date.now()}, ${ownership.organizationId}, ${ownership.incidentId} FROM target
       ON CONFLICT DO NOTHING
       RETURNING report_id
     ), updated AS (
@@ -111,6 +119,7 @@ export async function confirmReport(
 export async function updateReport(
   id: string,
   input: UpdateReportInput,
+  _scope: TenantScope,
 ): Promise<ReportDTO | null> {
   const db = await getDb();
   const patch: Record<string, unknown> = {};
@@ -130,7 +139,10 @@ export async function updateReport(
   return getReportById(id);
 }
 
-export async function removeReport(id: string): Promise<boolean> {
+export async function removeReport(
+  id: string,
+  _scope: TenantScope,
+): Promise<boolean> {
   const db = await getDb();
   const res = (await db.execute(
     sql`DELETE FROM ${reports} WHERE ${reports.id} = ${id} RETURNING id`,

@@ -5,8 +5,15 @@ import { invalidate } from "@/lib/cache";
 import type { DedupCandidate } from "@/services/patient-import-logic";
 import type { PatientCondition, PatientStatus } from "@/services/patients";
 import { ensurePrn, enqueueMatcherSweep } from "@/services/person-records";
+import type { TenantScope } from "@/tenant/scope";
+import { incidentOwnership } from "@/tenant/ownership";
 import { getImport } from "./create";
-import { assertImportState, loadHeader, PATIENT_IMPORT_FAILED_STAGE } from "./internal";
+import {
+	assertImportState,
+	loadHeader,
+	PATIENT_IMPORT_FAILED_STAGE,
+	tenantScopeFromImportHeader,
+} from "./internal";
 import {
 	DEDUP_ACCEPTED_REASON,
 	DEDUP_STATUS_ACCEPTED,
@@ -102,7 +109,10 @@ interface ApplyRowResult {
  * paciente aplicado (id + PRN) si la fila terminó aplicada, null si quedó
  * duplicada o no aplica.
  */
-async function applyOneRow(rowId: string): Promise<ApplyRowResult | null> {
+async function applyOneRow(
+	rowId: string,
+	scope: TenantScope,
+): Promise<ApplyRowResult | null> {
 	const db = getDb();
 	const now = Date.now();
 
@@ -170,7 +180,11 @@ async function applyOneRow(rowId: string): Promise<ApplyRowResult | null> {
 		// Capa de identidad: best-effort e idempotente (el paciente existente
 		// normalmente ya tiene PRN; ensurePrn nunca falla el apply). El sweep va
 		// en LOTE al final de applyImport, no aquí (ver ApplyRowResult).
-		const acceptedPrn = await ensurePrn("hospital_patient", acceptedPatientId);
+		const acceptedPrn = await ensurePrn(
+			"hospital_patient",
+			acceptedPatientId,
+			scope,
+		);
 		return { patientId: acceptedPatientId, prn: acceptedPrn };
 	}
 
@@ -193,11 +207,12 @@ async function applyOneRow(rowId: string): Promise<ApplyRowResult | null> {
 				: Math.max(0, Math.trunc(Number(row.age)));
 		const condition = normalizePatientCondition(row.condition);
 		const status = normalizePatientStatus(row.status);
+		const ownership = incidentOwnership(scope);
 		const result = (await db.execute(sql`
       insert into hospital_patients
-        (id, hospital_id, name, age, condition, status, notes, contact, document_hash, admitted_at, updated_at)
+        (id, hospital_id, name, age, condition, status, notes, contact, document_hash, admitted_at, updated_at, organization_id, incident_id)
       values
-        (${patientId}, ${row.hospitalId}, ${name}, ${age}, ${condition}, ${status}, '', '', ${row.documentHash ?? null}, ${now}, ${now})
+        (${patientId}, ${row.hospitalId}, ${name}, ${age}, ${condition}, ${status}, '', '', ${row.documentHash ?? null}, ${now}, ${now}, ${ownership.organizationId}, ${ownership.incidentId})
       on conflict (document_hash) where document_hash is not null do nothing
       returning id
     `)) as unknown as { rows: { id: string }[] };
@@ -219,7 +234,7 @@ async function applyOneRow(rowId: string): Promise<ApplyRowResult | null> {
 	// Capa de identidad: cada fila aplicada entra al registro PRN y al barrido
 	// del matcher (AE2/U8, en lote al final de applyImport). Best-effort:
 	// nunca falla el apply.
-	const prn = await ensurePrn("hospital_patient", patientId);
+	const prn = await ensurePrn("hospital_patient", patientId, scope);
 	return { patientId, prn };
 }
 
@@ -256,6 +271,10 @@ export async function applyImport(
 		assertImportState(header, ["processed", "applied", "failed", "applying"], "aplicar");
 	}
 
+	const header = await loadHeader(importId);
+	if (!header) throw new Error(`patient_import ${importId} no existe`);
+	const scope = tenantScopeFromImportHeader(header);
+
 	// Candidatas: las 'valid' pendientes Y las 'applying' huérfanas de un
 	// crash anterior (reanudación).
 	const toApply = (await db
@@ -274,10 +293,12 @@ export async function applyImport(
 	// de un enqueueMatcherSweep por fila.
 	const sweepPrns: string[] = [];
 	for (const row of toApply) {
-		const applied = await applyOneRow(row.id);
+		const applied = await applyOneRow(row.id, scope);
 		if (applied?.prn) sweepPrns.push(applied.prn);
 	}
-	if (sweepPrns.length > 0) await enqueueMatcherSweep([...new Set(sweepPrns)]);
+	if (sweepPrns.length > 0) {
+		await enqueueMatcherSweep([...new Set(sweepPrns)], scope);
+	}
 
 	const now = Date.now();
 	const appliedCount = (await db

@@ -16,6 +16,7 @@ import { env } from "@/config/env";
 import { badRequest, notFound, serviceUnavailable } from "@/lib/errors";
 import { sendVolunteerAssignmentEmail } from "@/auth/mailer";
 import * as service from "@/services/volunteer-tasks";
+import { requireTenantScope } from "@/middleware/tenant";
 
 export const volunteerTasksActionsRouter = Router();
 
@@ -58,7 +59,11 @@ volunteerTasksActionsRouter.post(
   asyncHandler(async (req, res) => {
     const taskId = (req.params as { id: string }).id;
     const { volunteerId } = req.body as z.infer<typeof assignBody>;
-    const assigned = await service.assignVolunteer(taskId, volunteerId);
+    const assigned = await service.assignVolunteer(
+      taskId,
+      volunteerId,
+      requireTenantScope(req),
+    );
     if (!assigned.ok && assigned.reason === "not-email") {
       throw badRequest(
         "El contacto de este voluntario no es un correo; asígnale la tarea por WhatsApp.",

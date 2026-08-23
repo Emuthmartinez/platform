@@ -23,7 +23,8 @@ import { Router, json } from "express";
 import { z } from "zod";
 import { asyncHandler, rateLimit, requireHuman, requireAdmin, setPublicPhotoHeaders, validate } from "@/middleware";
 import { jsonWithEtag } from "@/lib/http";
-import { cached } from "@/lib/cache";
+import { cached, cacheParamDigest } from "@/lib/cache";
+import { requireTenantScope } from "@/middleware/tenant";
 import { badRequest, payloadTooLarge, notFound, serviceUnavailable } from "@/lib/errors";
 import { HttpError } from "@/lib/errors";
 import { writeAudit } from "@/auth/audit";
@@ -112,7 +113,7 @@ petsRouter.get(
     >;
     const search = q;
     const hasSearch = (search ?? "").trim().length >= MIN_SEARCH_LEN;
-    const key = `pets:${status}:${page}:${pageSize}:${search ?? ""}:${species ?? ""}`;
+    const key = `pets:${status}:${page}:${pageSize}:${cacheParamDigest(search ?? "")}:${species ?? ""}`;
     const result = await cached(key, hasSearch ? 30_000 : 2_000, () =>
       service.listPetsPage({ status, page, pageSize, search, species }),
     );
@@ -173,7 +174,7 @@ petsRouter.post(
         reportType: body.reportType,
         lat: body.lat,
         lng: body.lng,
-      });
+      }, requireTenantScope(req));
       res.status(201).json({ pet });
     } catch (err) {
       if (err instanceof HttpError) throw err;

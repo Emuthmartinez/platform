@@ -25,6 +25,13 @@ import { getDb, schema } from "@/db";
 import { generatePrn, normalizePrn } from "@/lib/prn";
 import { getQueueProducer, type QueueProducer } from "@/lib/job-dispatch";
 import { recomputeClusterFor } from "@/services/person-clusters";
+import { colombiaTenantScope } from "@/lib/colombia-tenant";
+import {
+  incidentOwnership,
+  sqlOwnsIncidentOrLegacyNull,
+  tenantJobFields,
+} from "@/tenant/ownership";
+import type { TenantScope } from "@/tenant/scope";
 
 const { personRecords, personLinks, personClusterMembers } = schema;
 
@@ -79,15 +86,20 @@ async function stampBatch(
   recordType: string,
   ids: readonly string[],
   now: number,
+  scope: TenantScope = colombiaTenantScope(),
 ): Promise<Array<{ id: string; prn: string }>> {
   if (ids.length === 0) return [];
   const db = getDb();
+  const ownership = incidentOwnership(scope);
 
   for (let attempt = 0; attempt < MAX_COLLISION_RETRIES; attempt++) {
-    const tuples = ids.map((id) => sql`(${generatePrn()}, ${recordType}, ${id}, ${now})`);
+    const tuples = ids.map(
+      (id) =>
+        sql`(${generatePrn()}, ${recordType}, ${id}, ${now}, ${ownership.organizationId}, ${ownership.incidentId})`,
+    );
     try {
       const out = await db.execute(sql`
-        INSERT INTO person_records (prn, record_type, record_id, created_at)
+        INSERT INTO person_records (prn, record_type, record_id, created_at, organization_id, incident_id)
         VALUES ${sql.join(tuples, sql`,`)}
         ON CONFLICT (record_type, record_id) DO NOTHING
         RETURNING prn, record_id AS id
@@ -120,9 +132,10 @@ async function stampBatch(
 export async function ensurePrn(
   recordType: string,
   recordId: string,
+  scope: TenantScope = colombiaTenantScope(),
 ): Promise<string | null> {
   try {
-    await stampBatch(recordType, [recordId], Date.now());
+    await stampBatch(recordType, [recordId], Date.now(), scope);
     const db = getDb();
     const rows = execRows<{ prn: string }>(
       await db.execute(sql`
@@ -157,13 +170,14 @@ export async function ensurePrn(
 export async function ensurePrns(
   recordType: string,
   recordIds: readonly string[],
+  scope: TenantScope = colombiaTenantScope(),
 ): Promise<Map<string, string>> {
   const out = new Map<string, string>();
   const ids = [...new Set(recordIds)];
   if (ids.length === 0) return out;
 
   try {
-    const stamped = await stampBatch(recordType, ids, Date.now());
+    const stamped = await stampBatch(recordType, ids, Date.now(), scope);
     for (const row of stamped) out.set(row.id, row.prn);
 
     const remaining = ids.filter((id) => !out.has(id));
@@ -393,6 +407,7 @@ export async function listUnstamped(
   recordType: string,
   cursor: string | null,
   limit: number,
+  scope: TenantScope = colombiaTenantScope(),
 ): Promise<string[]> {
   const population = POPULATIONS.find((p) => p.recordType === recordType);
   if (!population) return [];
@@ -402,6 +417,7 @@ export async function listUnstamped(
   // sale del catálogo cerrado de arriba, jamás de una request.
   const table = sql.raw(`"${population.table}"`);
   const cursorClause = cursor ? sql`AND t.id > ${cursor}` : sql``;
+  const tenantPredicate = sqlOwnsIncidentOrLegacyNull(scope, "t");
 
   const rows = execRows<{ id: string }>(
     await db.execute(sql`
@@ -409,7 +425,7 @@ export async function listUnstamped(
       FROM ${table} t
       LEFT JOIN person_records pr
         ON pr.record_type = ${recordType} AND pr.record_id = t.id
-      WHERE pr.prn IS NULL ${cursorClause}
+      WHERE pr.prn IS NULL AND ${tenantPredicate} ${cursorClause}
       ORDER BY t.id
       LIMIT ${limit}
     `),
@@ -448,7 +464,10 @@ let matcherSweepCalls: string[][] = [];
 const MATCHER_QUEUE_BATCH_LIMIT = 100;
 const MATCHER_QUEUE_BINDING = "MATCHER_QUEUE";
 
-export async function enqueueMatcherSweep(prns: string[]): Promise<void> {
+export async function enqueueMatcherSweep(
+  prns: string[],
+  scope: TenantScope = colombiaTenantScope(),
+): Promise<void> {
   matcherSweepCalls.push(prns);
   if (prns.length === 0) return;
 
@@ -461,7 +480,7 @@ export async function enqueueMatcherSweep(prns: string[]): Promise<void> {
   // disparaba en creación, sin un solo error en los logs. Sigue sin lanzar:
   // el fallo se loguea y el sweep perdido lo recoge el siguiente trigger.
   try {
-    await sendMatcherSweepMessages(producer, prns);
+    await sendMatcherSweepMessages(producer, prns, scope);
   } catch (err) {
     console.error(
       `[person-records] enqueueMatcherSweep: fallo enviando ${prns.length} PRN(s) a ${MATCHER_QUEUE_BINDING}:`,
@@ -473,13 +492,18 @@ export async function enqueueMatcherSweep(prns: string[]): Promise<void> {
 /** Envía en lotes de ≤100 mensajes (`sendBatch` si el binding lo trae —
  *  siempre en un binding real de Queues; `send()` uno por uno como respaldo
  *  para un producer fake de test que solo implemente `send`). */
-async function sendMatcherSweepMessages(producer: QueueProducer, prns: string[]): Promise<void> {
+async function sendMatcherSweepMessages(
+  producer: QueueProducer,
+  prns: string[],
+  scope: TenantScope,
+): Promise<void> {
+  const tenant = tenantJobFields(scope);
   for (let i = 0; i < prns.length; i += MATCHER_QUEUE_BATCH_LIMIT) {
     const chunk = prns.slice(i, i + MATCHER_QUEUE_BATCH_LIMIT);
     if (producer.sendBatch) {
-      await producer.sendBatch(chunk.map((prn) => ({ body: { prn } })));
+      await producer.sendBatch(chunk.map((prn) => ({ body: { prn, ...tenant } })));
     } else {
-      await Promise.all(chunk.map((prn) => producer.send({ prn })));
+      await Promise.all(chunk.map((prn) => producer.send({ prn, ...tenant })));
     }
   }
 }
@@ -591,7 +615,7 @@ const DEFAULT_RECONCILE_TIME_BUDGET_MS = 60_000;
  * deseable aquí (la escritura es idempotente).
  */
 export async function reconcilePersonRecords(
-  opts: { timeBudgetMs?: number; batchSize?: number } = {},
+  opts: { timeBudgetMs?: number; batchSize?: number; scope?: TenantScope } = {},
 ): Promise<ReconcileResult> {
   const timeBudgetMs = Math.max(
     1,
@@ -602,6 +626,7 @@ export async function reconcilePersonRecords(
     1000,
   );
   const startedAt = Date.now();
+  const scope = opts.scope ?? colombiaTenantScope();
 
   const result: ReconcileResult = { stampedByType: {}, stampedTotal: 0, drainedByType: {} };
 
@@ -611,18 +636,18 @@ export async function reconcilePersonRecords(
     let cursor: string | null = null;
 
     while (Date.now() - startedAt < timeBudgetMs) {
-      const ids = await listUnstamped(population.recordType, cursor, batchSize);
+      const ids = await listUnstamped(population.recordType, cursor, batchSize, scope);
       if (ids.length === 0) {
         result.drainedByType[population.recordType] = true;
         break;
       }
 
-      const stamped = await stampBatch(population.recordType, ids, startedAt);
+      const stamped = await stampBatch(population.recordType, ids, startedAt, scope);
       result.stampedByType[population.recordType] =
         (result.stampedByType[population.recordType] ?? 0) + stamped.length;
       result.stampedTotal += stamped.length;
       if (stamped.length > 0) {
-        await enqueueMatcherSweep(stamped.map((row) => row.prn));
+        await enqueueMatcherSweep(stamped.map((row) => row.prn), scope);
       }
 
       // Avanza sobre TODO el lote leído, no solo sobre lo insertado por esta

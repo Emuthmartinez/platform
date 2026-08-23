@@ -4,6 +4,7 @@ import { asyncHandler, rateLimit, requireHuman, validate } from "@/middleware";
 import { forbidden, notFound, serviceUnavailable } from "@/lib/errors";
 import { reportEditTokenMatches } from "@/lib/report-edit-token";
 import * as service from "@/services/reports";
+import { requireTenantScope } from "@/middleware/tenant";
 
 const idParam = z.object({ id: z.string().min(1, "Falta el id") });
 
@@ -38,7 +39,7 @@ export function registerReportEdit(router: Router): void {
           place: body.place,
           affected: body.affected !== undefined ? Number(body.affected) || 0 : undefined,
           needs: body.needs,
-        });
+        }, requireTenantScope(req));
         res.json({ report });
       } catch (err) {
         throw serviceUnavailable(

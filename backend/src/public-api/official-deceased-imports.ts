@@ -11,6 +11,7 @@ import {
 	MAX_IMPORT_ROWS,
 } from "@/services/patient-import-parse";
 import * as service from "@/services/official-deceased";
+import { requireTenantScope } from "@/middleware/tenant";
 
 export const officialDeceasedImportsRouter = Router();
 
@@ -94,6 +95,7 @@ officialDeceasedImportsRouter.post(
 					rows,
 				},
 				req.user?.id ?? null,
+				requireTenantScope(req),
 			);
 			await writeAudit(req, {
 				action: "official_deceased.import",

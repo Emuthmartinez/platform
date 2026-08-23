@@ -11,6 +11,10 @@
 import type { Queue } from "bullmq";
 import type IORedisType from "ioredis";
 import { env } from "@/config/env";
+import {
+  COLOMBIA_INCIDENT_ID,
+  COLOMBIA_ORGANIZATION_ID,
+} from "@/lib/colombia-tenant";
 import type { DispatchOptions, JobRoute } from "./job-dispatch";
 
 let connection: IORedisType | null = null;
@@ -66,15 +70,31 @@ export async function getBullmqJobState(
   progress: unknown;
   result: unknown;
   failedReason: string | null;
+  organizationId: string;
+  incidentId: string;
 } | null> {
   const queue = await getQueue(route.queueName, url);
   const job = await queue.getJob(id);
   if (!job) return null;
+  const data =
+    typeof job.data === "object" && job.data !== null
+      ? (job.data as Record<string, unknown>)
+      : {};
+  const organizationId =
+    typeof data.organizationId === "string" && data.organizationId.trim()
+      ? data.organizationId.trim()
+      : COLOMBIA_ORGANIZATION_ID;
+  const incidentId =
+    typeof data.incidentId === "string" && data.incidentId.trim()
+      ? data.incidentId.trim()
+      : COLOMBIA_INCIDENT_ID;
   return {
     jobId: id,
     state: await job.getState(),
     progress: job.progress,
     result: job.returnvalue ?? null,
     failedReason: job.failedReason ?? null,
+    organizationId,
+    incidentId,
   };
 }

@@ -17,6 +17,7 @@ import { hashIp } from "@/lib/client-ip";
 import { logDbFailure } from "@/lib/db-error";
 import { captureFailedSubmission } from "@/lib/failed-submission";
 import { serviceUnavailable } from "@/lib/errors";
+import { requireTenantScope } from "@/middleware/tenant";
 import * as service from "@/services/volunteers";
 
 export const volunteersRouter = Router();
@@ -150,7 +151,7 @@ volunteersRouter.post(
         ownVehicle: body.ownVehicle,
         source: body.source,
         ipHash: hashIp(req),
-      });
+      }, requireTenantScope(req));
       res.status(200).json({
         ok: true,
         id: volunteer.id,
@@ -167,7 +168,7 @@ volunteersRouter.post(
       logDbFailure("volunteers.create", err);
       // Red de durabilidad: el 503 sigue igual, pero el envio de la
       // persona no se tira. Ver lib/failed-submission (nunca lanza).
-      await captureFailedSubmission("volunteers", body, err);
+      await captureFailedSubmission("volunteers", body, err, req.tenantScope);
       throw serviceUnavailable("No se pudo guardar el registro.");
     }
   }),

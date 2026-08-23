@@ -2,6 +2,8 @@ import { desc, eq } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { persistPhotoDataUrl } from "@/lib/r2";
 import { getVolunteerByCode } from "@/services/volunteers";
+import { incidentOwnership } from "@/tenant/ownership";
+import type { TenantScope } from "@/tenant/scope";
 
 const { volunteerCheckins, volunteers } = schema;
 
@@ -26,7 +28,7 @@ export async function createVolunteerCheckin(input: {
   availability?: string;
   talent?: string;
   area?: string;
-}): Promise<{ id: string } | null> {
+}, scope: TenantScope): Promise<{ id: string } | null> {
   const volunteer = await getVolunteerByCode(input.code);
   if (!volunteer) return null;
   const id = crypto.randomUUID();
@@ -67,6 +69,7 @@ export async function createVolunteerCheckin(input: {
     note: input.note,
     photo: stored,
     createdAt: Date.now(),
+    ...incidentOwnership(scope),
   });
   return { id };
 }

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { createCrudRouter, type CrudResource } from "@/public-api/crud-factory";
+import { requireTenantScope } from "@/middleware/tenant";
 import * as service from "@/services/reports";
 
 const reportType = z.enum(service.REPORT_TYPE_KEYS);
@@ -48,7 +49,7 @@ export const reportsResource: CrudResource<
   ops: {
     list: () => service.listReports(),
     get: (id) => service.getReportById(id),
-    create: (input) =>
+    create: (input, req) =>
       service.addReport({
         type: input.type,
         lat: input.lat,
@@ -57,9 +58,11 @@ export const reportsResource: CrudResource<
         affected: input.affected,
         needs: input.needs,
         photo: null,
-      }),
-    update: (id, input) => service.updateReport(id, input),
-    remove: (id) => service.removeReport(id),
+      }, requireTenantScope(req)),
+    update: (id, input, req) =>
+      service.updateReport(id, input, requireTenantScope(req)),
+    remove: (id, req) =>
+      service.removeReport(id, requireTenantScope(req)),
   },
 };
 

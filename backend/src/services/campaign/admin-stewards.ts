@@ -11,6 +11,7 @@ import { desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { campaignSiteStewards, campaignSites } from "@/db/campaign-schema";
 import { createSteward, revokeSteward } from "./stewards";
+import type { TenantScope } from "@/tenant/scope";
 
 export interface StewardDTO {
   id: string;
@@ -70,8 +71,8 @@ export async function getSteward(id: string): Promise<StewardDTO | null> {
 export async function addSteward(input: {
   siteId: string;
   displayName: string;
-}): Promise<StewardDTO> {
-  const { id, token } = await createSteward(input);
+}, scope: TenantScope): Promise<StewardDTO> {
+  const { id, token } = await createSteward(input, scope);
   const created = await getSteward(id);
   if (!created) throw new Error("No se pudo leer el responsable recién creado.");
   return { ...created, token };

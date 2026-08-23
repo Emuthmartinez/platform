@@ -1,5 +1,6 @@
 import "./helpers";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { colombiaTenantScope } from "@/lib/colombia-tenant";
 import { registerJobBindings, resetJobBindings } from "@/lib/job-dispatch";
 import {
   getNeedPublicationState,
@@ -17,9 +18,10 @@ describe("estado durable de publicación en Cloudflare Queues", () => {
   it("expone queued y completed sin copiar campos extra del resultado", async () => {
     registerJobBindings({ NEEDS_QUEUE: { send: vi.fn().mockResolvedValue(undefined) } });
     const jobId = `need-status-${crypto.randomUUID()}`;
+    const scope = colombiaTenantScope();
 
-    await recordNeedPublicationState(jobId, "queued");
-    expect(await getNeedPublicationState(jobId)).toEqual({
+    await recordNeedPublicationState(jobId, "queued", scope);
+    expect(await getNeedPublicationState(jobId, scope)).toEqual({
       jobId,
       state: "queued",
       progress: null,
@@ -27,15 +29,18 @@ describe("estado durable de publicación en Cloudflare Queues", () => {
       failedReason: null,
     });
 
-    await recordNeedPublicationState(jobId, "completed", {
+    await recordNeedPublicationState(jobId, "completed", scope, {
       result: { id: "external-demo", status: "pending", privateField: "no sale" },
     });
-    expect(await getNeedPublicationState(jobId)).toEqual({
+    const completed = await getNeedPublicationState(jobId, scope);
+    expect(completed).toEqual({
       jobId,
       state: "completed",
       progress: 100,
       result: { id: "external-demo", status: "pending" },
       failedReason: null,
     });
+    expect(JSON.stringify(completed)).not.toContain("privateField");
+    expect(JSON.stringify(completed)).not.toMatch(/email|phone|address|title/i);
   });
 });
