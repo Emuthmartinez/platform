@@ -393,6 +393,15 @@ surface. Turnstile and rate limiting remain the real protection.
   the previous one by reverting the Worker version or the staging PR. Do
   not point Colombia DNS at the platform clone. Inventory:
   `docs/platform/execution-boundaries.md`.
+- **Operational backfill (U8 step 3):** stamp existing NULL tenant columns
+  with the Colombia pair. The runner is `backend/worker/ops-backfill.ts`.
+  It is not `backend/worker/migrate.ts`. It does not call `seedAuth()`.
+  Manifests and verification SQL live in `infra/db/operations/`. Run
+  `count-only` first, then `apply`, one domain at a time, against Neon
+  **direct** (never `-pooler`). An agent never runs this against staging or
+  production. This step does not set columns to `NOT NULL`. That tighten
+  is a later human-gated migration after verification shows zero NULL
+  rows. First domain: citizen reports (`0015`).
 - **Public replica (SQL hub, optional, `ENABLE_HUB_FEDERATION`).** A second,
   read-only Postgres instance can receive, through **logical
   replication**, only the tables and columns marked publishable (with no

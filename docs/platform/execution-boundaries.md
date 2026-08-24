@@ -141,7 +141,7 @@ a global `audit_log` row. It is not a silent success.
 | Local seed | `backend/src/seed/index.ts`, `seed/volunteers-demo.ts` | `incidentOwnership(colombiaTenantScope())`. Refuses production / non-local DB |
 | Auth seed | `backend/src/auth/seed.ts` | Global capabilities, org roles, global users |
 | `backend/worker/migrate.ts` | schema apply | No operational tenant writes. Human-gated against Neon direct |
-| Operational backfill | U8 (not this unit) | Must not start until post-deploy rows show zero NULL tenant columns |
+| Operational backfill | `backend/worker/ops-backfill.ts` | Colombia IDs from `infra/db/operations/u8-colombia-backfill.manifest.json`. Human-gated. Neon direct endpoint. Does not call `seedAuth()`. Columns stay nullable until a later tighten migration |
 | Test helpers | `backend/test/helpers.ts` | Hostname pin → Colombia `TenantScope`. Extra org/incident fixtures construct `createTenantScope` explicitly |
 
 ## Tables with no runtime writer in this deployment
@@ -170,3 +170,7 @@ incident exists (U27).
   across all rows.
 - A pre-tenant queue body still decodes through the Colombia
   compatibility path.
+- U8 reports-domain backfill commits more than one bounded batch, resumes
+  after interrupt, and leaves zero NULL tenant columns
+  (`backend/test/ops-backfill.test.ts`). Do not treat that as staging
+  evidence. A human must still run count-only then apply on Neon direct.

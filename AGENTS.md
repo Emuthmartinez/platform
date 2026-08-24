@@ -368,6 +368,12 @@ Rules, in order of importance:
 1. **Migrate first, in its own commit, applied before you merge the code
    that uses it.** Code that reads or writes the new columns goes
    **after**, in a separate commit.
+   **Operational backfill is not a migration.** `npm run ops:backfill`
+   stamps NULL tenant columns in bounded committed batches
+   (`backend/worker/ops-backfill.ts`). An agent never runs it against
+   Neon. Do not put the loop in `infra/db/migrations/`. The runner must
+   not call `seedAuth()`. Use the Neon **direct** endpoint, never
+   `-pooler`.
 2. **Write expand-contract migrations, always** — not only "when you want
    a rollout with no downtime." Adding a nullable column is backward
    compatible: old code ignores it. A `RENAME COLUMN` is **not**
@@ -490,7 +496,7 @@ backend/src/            Express API, services, middleware, Drizzle access
 backend/src/modules/    Integrations as DDD modules (domain/application/infra/http)
 backend/worker/         BullMQ workers, sync, migrations, and backfills
 admin/                  Standalone admin panel (Next.js: BFF app/api/* + RBAC)
-infra/db/               Drizzle schema + migrations
+infra/db/               Drizzle schema, migrations, operational backfill
 config/                 deployment.config.json (deployment identity)
 docs/                   Design and architecture
 docs/geo/               GEO/SEO audits + how to use the skill
