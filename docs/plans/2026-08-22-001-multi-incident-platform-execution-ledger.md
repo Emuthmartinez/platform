@@ -649,12 +649,14 @@ This is the current `is_super_admin` model, not organization memberships.
 - Colombia staging Neon: same operator created as an additional superadmin.
   `info@mallanet.org` stays. Production Neon was not written.
 
+- Isolated Workers on this clone: `mallanet-platform-*-staging` at
+  `*.e-muth-martinez.workers.dev`. Queues renamed. Isolation test greps
+  wrangler names.
+
 **Not claimed:**
 
 - U30 global identities / independent org memberships
-- Isolated Cloudflare Workers (`mallanet-platform-*`) until wrangler names
-  on `Emuthmartinez/platform` no longer say `terremotocolombia-*`
-- `ENABLE_PLATFORM_DEPLOYS`
+- `ENABLE_PLATFORM_DEPLOYS` (GitHub still must not deploy this clone)
 
 ## Blocker packets (open)
 

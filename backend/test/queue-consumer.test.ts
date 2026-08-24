@@ -44,12 +44,12 @@ function fakeMessage(id: string, body: unknown, attempts = 1): FakeMessage {
 
 describe("classifyQueue", () => {
   it("reconoce los nombres exactos y rechaza un substring", () => {
-    expect(classifyQueue("terremotocolombia-needs")).toBe("needs");
-    expect(classifyQueue("terremotocolombia-needs-staging")).toBe("needs");
-    expect(classifyQueue("terremotocolombia-needs-dlq")).toBe("needs-dlq");
-    expect(classifyQueue("terremotocolombia-needs-dlq-staging")).toBe("needs-dlq");
-    expect(classifyQueue("terremotocolombia-imports")).toBe("imports");
-    expect(classifyQueue("terremotocolombia-matcher-staging")).toBe("matcher");
+    expect(classifyQueue("mallanet-platform-needs")).toBe("needs");
+    expect(classifyQueue("mallanet-platform-needs-staging")).toBe("needs");
+    expect(classifyQueue("mallanet-platform-needs-dlq")).toBe("needs-dlq");
+    expect(classifyQueue("mallanet-platform-needs-dlq-staging")).toBe("needs-dlq");
+    expect(classifyQueue("mallanet-platform-imports")).toBe("imports");
+    expect(classifyQueue("mallanet-platform-matcher-staging")).toBe("matcher");
     expect(classifyQueue("needs-publication")).toBe("needs");
     expect(classifyQueue("patient-imports")).toBe("imports");
     expect(classifyQueue("otra-cola")).toBe("unknown");
@@ -66,7 +66,7 @@ describe("consumeNeedsBatch", () => {
       need: { title: "Demo" },
     });
     await consumeNeedsBatch(
-      { queue: "terremotocolombia-needs", messages: [message] },
+      { queue: "mallanet-platform-needs", messages: [message] },
       { publish, markCompleted },
     );
     expect(publish).toHaveBeenCalledTimes(1);
@@ -91,7 +91,7 @@ describe("consumeNeedsBatch", () => {
     });
 
     await consumeNeedsBatch(
-      { queue: "terremotocolombia-needs", messages: [message] },
+      { queue: "mallanet-platform-needs", messages: [message] },
       { publish, markCompleted },
     );
 
@@ -110,7 +110,7 @@ describe("consumeNeedsBatch", () => {
     const bad = fakeMessage("m2", {});
     const ok2 = fakeMessage("m3", {});
     await consumeNeedsBatch(
-      { queue: "terremotocolombia-needs", messages: [ok1, bad, ok2] },
+      { queue: "mallanet-platform-needs", messages: [ok1, bad, ok2] },
       { publish },
     );
     expect(ok1.acked).toBe(true);
@@ -123,7 +123,7 @@ describe("consumeNeedsBatch", () => {
     const publish = vi.fn().mockRejectedValue(new Error("boom"));
     const message = fakeMessage("m1", {});
     await expect(
-      consumeNeedsBatch({ queue: "terremotocolombia-needs", messages: [message] }, { publish }),
+      consumeNeedsBatch({ queue: "mallanet-platform-needs", messages: [message] }, { publish }),
     ).resolves.toBeUndefined();
     expect(message.retried).toBe(true);
   });
@@ -132,7 +132,7 @@ describe("consumeNeedsBatch", () => {
     const publish = vi.fn().mockResolvedValue({ ok: true });
     const message = fakeMessage("m-v2", QUEUE_PROTOCOL_FIXTURES.needsV2OtherTenant);
     await consumeNeedsBatch(
-      { queue: "terremotocolombia-needs", messages: [message] },
+      { queue: "mallanet-platform-needs", messages: [message] },
       { publish },
     );
     expect(publish).toHaveBeenCalledWith({
@@ -149,7 +149,7 @@ describe("consumeNeedsBatch", () => {
     const unsupported = fakeMessage("v99", QUEUE_PROTOCOL_FIXTURES.unsupportedVersion);
     const wrongFamily = fakeMessage("wf", QUEUE_PROTOCOL_FIXTURES.wrongFamilyOnNeeds);
     await consumeNeedsBatch(
-      { queue: "terremotocolombia-needs", messages: [malformed, unsupported, wrongFamily] },
+      { queue: "mallanet-platform-needs", messages: [malformed, unsupported, wrongFamily] },
       { publish },
     );
     expect(publish).not.toHaveBeenCalled();
@@ -165,7 +165,7 @@ describe("consumeImportsBatch", () => {
     const v1 = fakeMessage("imp-1", QUEUE_PROTOCOL_FIXTURES.importsV1);
     const v2 = fakeMessage("imp-2", QUEUE_PROTOCOL_FIXTURES.importsV2);
     await consumeImportsBatch(
-      { queue: "terremotocolombia-imports", messages: [v1, v2] },
+      { queue: "mallanet-platform-imports", messages: [v1, v2] },
       { run },
     );
     expect(run).toHaveBeenNthCalledWith(1, expect.objectContaining({
@@ -187,7 +187,7 @@ describe("consumeMatcherBatch", () => {
     const v1 = fakeMessage("m-1", QUEUE_PROTOCOL_FIXTURES.matcherV1);
     const v2 = fakeMessage("m-2", QUEUE_PROTOCOL_FIXTURES.matcherV2);
     await consumeMatcherBatch(
-      { queue: "terremotocolombia-matcher", messages: [v1, v2] },
+      { queue: "mallanet-platform-matcher", messages: [v1, v2] },
       { run },
     );
     expect(run).toHaveBeenCalledWith({ prn: "PRN-DEMO-0001" });
@@ -202,11 +202,11 @@ describe("consumeDlqBatch", () => {
     const persist = vi.fn().mockResolvedValue(undefined);
     const message = fakeMessage("dead-1", { need: { title: "X" } }, 6);
     await consumeDlqBatch(
-      { queue: "terremotocolombia-needs-dlq", messages: [message] },
+      { queue: "mallanet-platform-needs-dlq", messages: [message] },
       persist,
     );
     expect(persist).toHaveBeenCalledWith({
-      queue: "terremotocolombia-needs-dlq",
+      queue: "mallanet-platform-needs-dlq",
       messageId: "dead-1",
       attempts: 6,
       payload: { need: "[redacted]" },
@@ -218,7 +218,7 @@ describe("consumeDlqBatch", () => {
     const persist = vi.fn().mockRejectedValue(new Error("db caida"));
     const message = fakeMessage("dead-2", {});
     await consumeDlqBatch(
-      { queue: "terremotocolombia-needs-dlq", messages: [message] },
+      { queue: "mallanet-platform-needs-dlq", messages: [message] },
       persist,
     );
     expect(persist).toHaveBeenCalledTimes(3);
@@ -241,11 +241,11 @@ describe("consumeDlqBatch", () => {
       4,
     );
     await consumeDlqBatch(
-      { queue: "terremotocolombia-imports-dlq", messages: [message] },
+      { queue: "mallanet-platform-imports-dlq", messages: [message] },
       persist,
     );
     expect(persist).toHaveBeenCalledWith({
-      queue: "terremotocolombia-imports-dlq",
+      queue: "mallanet-platform-imports-dlq",
       messageId: "dead-v2",
       attempts: 4,
       payload: expect.objectContaining({
@@ -268,7 +268,7 @@ describe("consumeDlqBatch", () => {
     const message = fakeMessage("dead-need", body, 6);
 
     await consumeDlqBatch(
-      { queue: "terremotocolombia-needs-dlq", messages: [message] },
+      { queue: "mallanet-platform-needs-dlq", messages: [message] },
       persist,
       { onNeedDeadLetter },
     );
@@ -331,7 +331,7 @@ describe("persistDeadLetter (integración)", () => {
   it("escribe la carta muerta en audit_log con action queue.dead_letter", async () => {
     const messageId = `test-dead-${Date.now()}`;
     await persistDeadLetter({
-      queue: "terremotocolombia-needs-dlq-staging",
+      queue: "mallanet-platform-needs-dlq-staging",
       messageId,
       attempts: 6,
       payload: { need: { title: "DEMO carta muerta" } },
@@ -348,7 +348,7 @@ describe("persistDeadLetter (integración)", () => {
     );
     expect(mine).toBeDefined();
     expect(mine!.targetType).toBe("queue");
-    expect(mine!.targetId).toBe("terremotocolombia-needs-dlq-staging");
+    expect(mine!.targetId).toBe("mallanet-platform-needs-dlq-staging");
     expect((mine!.metadata as { attempts?: number }).attempts).toBe(6);
     expect((mine!.metadata as { payload?: { need?: string } }).payload).toEqual({
       need: "[redacted]",
@@ -358,7 +358,7 @@ describe("persistDeadLetter (integración)", () => {
   it("preserva errorSummary y no copia fileBase64 al audit_log", async () => {
     const messageId = `test-dead-import-${Date.now()}`;
     await persistDeadLetter({
-      queue: "terremotocolombia-imports-dlq-staging",
+      queue: "mallanet-platform-imports-dlq-staging",
       messageId,
       attempts: 4,
       payload: {

@@ -420,11 +420,11 @@ describe("matcher — idempotencia del consumidor (entrega al-menos-una-vez)", (
     const run = vi.fn((job: { prn: string }) => matcher.processMatcherMessage(job));
 
     await queueConsumer.consumeMatcherBatch(
-      { queue: "terremotocolombia-matcher", messages: [fakeMessage("dup-1", { prn: missingPrn })] },
+      { queue: "mallanet-platform-matcher", messages: [fakeMessage("dup-1", { prn: missingPrn })] },
       { run },
     );
     await queueConsumer.consumeMatcherBatch(
-      { queue: "terremotocolombia-matcher", messages: [fakeMessage("dup-1", { prn: missingPrn })] },
+      { queue: "mallanet-platform-matcher", messages: [fakeMessage("dup-1", { prn: missingPrn })] },
       { run },
     );
 

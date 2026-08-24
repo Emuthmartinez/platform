@@ -1,17 +1,16 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "terremotocolombia-admin",
+  "name": "mallanet-platform-admin",
   "main": ".open-next/worker.js",
   "compatibility_date": "2026-08-01",
   "compatibility_flags": ["nodejs_compat"],
-  // KTD7: disable *.workers.dev. Do not add `routes`. Repeat under env.staging.
+  // Isolated clone: staging is workers.dev only. Do not add `routes`.
   "workers_dev": false,
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS",
   },
-  // El dominio propio (admin.terremotocolombia.co) se adjunta por la API de
-  // cuenta (/accounts/{id}/workers/domains), IGUAL que web y api.
+  // Isolated clone: no Colombia custom domain. Do not add `routes`.
   //
   // NO declarar `routes` aquí: con `routes`, wrangler llama además a
   // /zones/{id}/workers/routes, para lo que el token de cuenta no tiene
@@ -24,14 +23,14 @@
   // El BFF solo necesita saber dónde vive la API; no hay secretos de runtime
   // (la sesión es el JWT del backend en cookie httpOnly, firmado por la API).
   "vars": {
-    "EMERGENCY_API_URL": "https://api.terremotocolombia.co",
+    "EMERGENCY_API_URL": "https://mallanet-platform-api.e-muth-martinez.workers.dev",
   },
   // Staging: Worker aparte, dominio aparte (admin-staging), API de staging.
   // Mismo fichero a propósito — ver frontend/wrangler.jsonc.
   "env": {
     "staging": {
-      "name": "terremotocolombia-admin-staging",
-      "workers_dev": false,
+      "name": "mallanet-platform-admin-staging",
+      "workers_dev": true,
       "compatibility_date": "2026-08-01",
       "compatibility_flags": ["nodejs_compat"],
       "assets": {
@@ -43,7 +42,7 @@
         "logs": { "enabled": true, "head_sampling_rate": 1, "invocation_logs": false },
       },
       "vars": {
-        "EMERGENCY_API_URL": "https://api-staging.terremotocolombia.co",
+        "EMERGENCY_API_URL": "https://mallanet-platform-api-staging.e-muth-martinez.workers.dev",
       },
     },
   },

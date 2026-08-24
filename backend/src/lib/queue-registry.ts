@@ -20,43 +20,43 @@ export interface RegisteredQueue {
  * Classification is exact-match only. Do not add substring fallbacks.
  */
 export const REGISTERED_QUEUES: readonly RegisteredQueue[] = [
-  { name: "terremotocolombia-needs", kind: "needs", environment: "production" },
-  { name: "terremotocolombia-needs-staging", kind: "needs", environment: "staging" },
-  { name: "terremotocolombia-needs-dlq", kind: "needs-dlq", environment: "production" },
+  { name: "mallanet-platform-needs", kind: "needs", environment: "production" },
+  { name: "mallanet-platform-needs-staging", kind: "needs", environment: "staging" },
+  { name: "mallanet-platform-needs-dlq", kind: "needs-dlq", environment: "production" },
   {
-    name: "terremotocolombia-needs-dlq-staging",
+    name: "mallanet-platform-needs-dlq-staging",
     kind: "needs-dlq",
     environment: "staging",
   },
-  { name: "terremotocolombia-imports", kind: "imports", environment: "production" },
+  { name: "mallanet-platform-imports", kind: "imports", environment: "production" },
   {
-    name: "terremotocolombia-imports-staging",
+    name: "mallanet-platform-imports-staging",
     kind: "imports",
     environment: "staging",
   },
   {
-    name: "terremotocolombia-imports-dlq",
+    name: "mallanet-platform-imports-dlq",
     kind: "imports-dlq",
     environment: "production",
   },
   {
-    name: "terremotocolombia-imports-dlq-staging",
+    name: "mallanet-platform-imports-dlq-staging",
     kind: "imports-dlq",
     environment: "staging",
   },
-  { name: "terremotocolombia-matcher", kind: "matcher", environment: "production" },
+  { name: "mallanet-platform-matcher", kind: "matcher", environment: "production" },
   {
-    name: "terremotocolombia-matcher-staging",
+    name: "mallanet-platform-matcher-staging",
     kind: "matcher",
     environment: "staging",
   },
   {
-    name: "terremotocolombia-matcher-dlq",
+    name: "mallanet-platform-matcher-dlq",
     kind: "matcher-dlq",
     environment: "production",
   },
   {
-    name: "terremotocolombia-matcher-dlq-staging",
+    name: "mallanet-platform-matcher-dlq-staging",
     kind: "matcher-dlq",
     environment: "staging",
   },

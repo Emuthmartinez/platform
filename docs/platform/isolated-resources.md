@@ -27,3 +27,20 @@ applied on this isolated branch. Drift is clean.
 
 Do not copy Colombia `DOPPLER_TOKEN` or Cloudflare tokens into
 `Emuthmartinez/platform`. Do not set `ENABLE_PLATFORM_DEPLOYS`.
+
+## Isolated Workers
+
+Same Cloudflare account as Colombia. Isolation is the **Worker name**, not
+the account. Never deploy this clone with a `terremotocolombia-*` name.
+
+| Worker | URL |
+|---|---|
+| `mallanet-platform-api-staging` | https://mallanet-platform-api-staging.e-muth-martinez.workers.dev |
+| `mallanet-platform-admin-staging` | https://mallanet-platform-admin-staging.e-muth-martinez.workers.dev |
+| `mallanet-platform-web-staging` | https://mallanet-platform-web-staging.e-muth-martinez.workers.dev |
+
+Staging `workers_dev` is true. Root names exist so `wrangler deploy` without
+`--env` cannot overwrite Colombia Workers. Do not add `routes`.
+
+Queues: `mallanet-platform-{needs,imports,matcher}[-dlq][-staging]`.
+

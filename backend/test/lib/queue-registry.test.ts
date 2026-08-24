@@ -14,7 +14,7 @@ describe("queue registry", () => {
     }
     expect(lookupQueueKind("otra-cola")).toBe("unknown");
     expect(lookupQueueKind("foo-needs-bar")).toBe("unknown");
-    expect(lookupQueueKind("terremotocolombia-needs-extra")).toBe("unknown");
+    expect(lookupQueueKind("mallanet-platform-needs-extra")).toBe("unknown");
   });
 
   it("matches wrangler.jsonc producer and consumer names exactly", () => {
