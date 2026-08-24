@@ -79,6 +79,12 @@ export async function captureFailedSubmission(
   scope?: TenantScope | null,
 ): Promise<boolean> {
   try {
+    if (!scope) {
+      console.error(
+        `[failed-submission] ${form}: NO TenantScope, envio no guardado, SE PIERDE.`,
+      );
+      return false;
+    }
     const db = await getDb();
     await db.insert(failedSubmissions).values({
       id: crypto.randomUUID(),
@@ -87,7 +93,7 @@ export async function captureFailedSubmission(
       errorCode: sqlstateOf(err),
       createdAt: Date.now(),
       replayedAt: null,
-      ...(scope ? incidentOwnership(scope) : {}),
+      ...incidentOwnership(scope),
     });
     console.warn(`[failed-submission] ${form}: envio guardado para reinyectar`);
     return true;

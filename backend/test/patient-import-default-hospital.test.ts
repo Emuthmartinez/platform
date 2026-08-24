@@ -14,7 +14,7 @@ import { randomUUID } from "crypto";
 import { beforeAll, describe, expect, it } from "vitest";
 import "./helpers";
 import request from "supertest";
-import { makeUserWithCaps } from "./helpers";
+import { makeUserWithCaps, testTenantOwnership} from "./helpers";
 
 let app: import("express").Express;
 
@@ -26,7 +26,7 @@ async function makeHospital(name: string): Promise<{ id: string; name: string }>
 	const { getDb, schema } = await import("@/db");
 	const db = getDb();
 	const id = randomUUID();
-	await db.insert(schema.hospitals).values({ id, name, createdAt: Date.now() });
+	await db.insert(schema.hospitals).values({ id, name, createdAt: Date.now(), ...testTenantOwnership() });
 	return { id, name };
 }
 

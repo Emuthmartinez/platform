@@ -88,8 +88,16 @@ export const deployments = pgTable(
   ],
 );
 
-/** Nullable expand columns. U8 tighten sets NOT NULL after backfill. */
+/** Tenant columns. U8 tighten makes these NOT NULL on incident-scoped tables. */
 export function incidentOwnershipColumns() {
+  return {
+    organizationId: text("organization_id").notNull(),
+    incidentId: text("incident_id").notNull(),
+  };
+}
+
+/** Mixed-scope audit columns. Global and organization rows keep NULLs. */
+export function mixedScopeOwnershipColumns() {
   return {
     organizationId: text("organization_id"),
     incidentId: text("incident_id"),
@@ -105,6 +113,13 @@ export function incidentOwnershipFk(
     columns: [t.organizationId, t.incidentId],
     foreignColumns: [incidents.organizationId, incidents.id],
   }).onDelete("restrict");
+}
+
+export function tenantScopeIndex(
+  tableName: string,
+  t: { organizationId: AnyPgColumn; incidentId: AnyPgColumn },
+) {
+  return index(`${tableName}_tenant_scope_idx`).on(t.organizationId, t.incidentId);
 }
 
 /* ------------------------------------------------------------------ reports */
@@ -140,6 +155,7 @@ export const reports = pgTable(
       .on(t.id)
       .where(sql`photo_migrated_at IS NULL AND photo IS NOT NULL`),
     incidentOwnershipFk("reports", t),
+    tenantScopeIndex("reports", t),
   ],
 );
 
@@ -156,6 +172,7 @@ export const reportConfirmations = pgTable(
   (t) => [
     primaryKey({ columns: [t.reportId, t.ipHash] }),
     incidentOwnershipFk("report_confirmations", t),
+    tenantScopeIndex("report_confirmations", t),
   ],
 );
 
@@ -213,6 +230,7 @@ export const missingPersons = pgTable(
       .on(t.documentHash)
       .where(sql`document_hash IS NOT NULL`),
     incidentOwnershipFk("missing_persons", t),
+    tenantScopeIndex("missing_persons", t),
   ],
 );
 
@@ -231,6 +249,7 @@ export const missingPersonSuppressions = pgTable(
       .on(t.source, t.externalId)
       .where(sql`source IS NOT NULL AND external_id IS NOT NULL`),
     incidentOwnershipFk("missing_person_suppressions", t),
+    tenantScopeIndex("missing_person_suppressions", t),
   ],
 );
 
@@ -260,6 +279,7 @@ export const officialDeceasedLists = pgTable(
   (t) => [
     uniqueIndex("idx_official_deceased_lists_source_url").on(t.sourceUrl),
     incidentOwnershipFk("official_deceased_lists", t),
+    tenantScopeIndex("official_deceased_lists", t),
   ],
 );
 
@@ -282,6 +302,7 @@ export const officialDeceasedRecords = pgTable(
     index("idx_official_deceased_records_list").on(t.listId, t.createdAt.desc()),
     index("idx_official_deceased_records_name").on(t.name),
     incidentOwnershipFk("official_deceased_records", t),
+    tenantScopeIndex("official_deceased_records", t),
   ],
 );
 
@@ -350,6 +371,7 @@ export const missingPets = pgTable(
     index("idx_pets_status_created").on(t.status, t.createdAt.desc()),
     index("idx_pets_map_coords").on(t.lat, t.lng),
     incidentOwnershipFk("missing_pets", t),
+    tenantScopeIndex("missing_pets", t),
   ],
 );
 
@@ -375,6 +397,7 @@ export const chatMessages = pgTable(
     index("idx_chat_thread_bumped").on(t.threadBumpedAt.desc()),
     index("idx_chat_reply").on(t.replyTo),
     incidentOwnershipFk("chat_messages", t),
+    tenantScopeIndex("chat_messages", t),
   ],
 );
 
@@ -402,6 +425,7 @@ export const hospitals = pgTable(
       .where(sql`external_id IS NOT NULL`),
     index("idx_hospitals_state").on(t.state, t.priorityZone, t.name),
     incidentOwnershipFk("hospitals", t),
+    tenantScopeIndex("hospitals", t),
   ],
 );
 
@@ -438,6 +462,7 @@ export const hospitalPatients = pgTable(
       .on(t.documentHash)
       .where(sql`document_hash IS NOT NULL`),
     incidentOwnershipFk("hospital_patients", t),
+    tenantScopeIndex("hospital_patients", t),
   ],
 );
 
@@ -503,6 +528,7 @@ export const patientImports = pgTable(
       .on(t.createdBy, t.idempotencyKeyHash)
       .where(sql`idempotency_key_hash IS NOT NULL`),
     incidentOwnershipFk("patient_imports", t),
+    tenantScopeIndex("patient_imports", t),
   ],
 );
 
@@ -554,6 +580,7 @@ export const patientImportRows = pgTable(
     index("idx_patient_import_rows_import").on(t.importId, t.rowIndex),
     index("idx_patient_import_rows_status").on(t.importId, t.rowStatus),
     incidentOwnershipFk("patient_import_rows", t),
+    tenantScopeIndex("patient_import_rows", t),
   ],
 );
 
@@ -587,6 +614,7 @@ export const ocrCorrections = pgTable(
   (t) => [
     index("idx_ocr_corrections_row").on(t.importRowId),
     incidentOwnershipFk("ocr_corrections", t),
+    tenantScopeIndex("ocr_corrections", t),
   ],
 );
 
@@ -622,6 +650,7 @@ export const hospitalSupplyStatuses = pgTable(
     ),
     index("idx_hospital_supply_status_hospital").on(t.hospitalId),
     incidentOwnershipFk("hospital_supply_statuses", t),
+    tenantScopeIndex("hospital_supply_statuses", t),
   ],
 );
 
@@ -656,6 +685,7 @@ export const hospitalSupplyNeeds = pgTable(
     ),
     index("idx_hospital_supply_needs_category").on(t.category, t.status),
     incidentOwnershipFk("hospital_supply_needs", t),
+    tenantScopeIndex("hospital_supply_needs", t),
   ],
 );
 
@@ -685,6 +715,7 @@ export const hospitalSupplyHelpRequests = pgTable(
     ),
     index("idx_hospital_supply_help_hospital").on(t.hospitalId),
     incidentOwnershipFk("hospital_supply_help_requests", t),
+    tenantScopeIndex("hospital_supply_help_requests", t),
   ],
 );
 
@@ -712,6 +743,7 @@ export const hospitalPocAssignments = pgTable(
       t.active,
     ),
     incidentOwnershipFk("hospital_poc_assignments", t),
+    tenantScopeIndex("hospital_poc_assignments", t),
   ],
 );
 
@@ -739,6 +771,7 @@ export const hospitalSupplyEvents = pgTable(
     ),
     index("idx_hospital_supply_events_entity").on(t.entityType, t.entityId),
     incidentOwnershipFk("hospital_supply_events", t),
+    tenantScopeIndex("hospital_supply_events", t),
   ],
 );
 
@@ -760,6 +793,7 @@ export const donations = pgTable(
   (t) => [
     index("donations_created_at_idx").on(t.createdAt.desc()),
     incidentOwnershipFk("donations", t),
+    tenantScopeIndex("donations", t),
   ],
 );
 
@@ -771,7 +805,7 @@ export const clickCounters = pgTable(
     count: integer("count").notNull().default(0),
     ...incidentOwnershipColumns(),
   },
-  (t) => [incidentOwnershipFk("click_counters", t)],
+  (t) => [incidentOwnershipFk("click_counters", t), tenantScopeIndex("click_counters", t)],
 );
 
 export const clickCounterDedup = pgTable(
@@ -785,6 +819,7 @@ export const clickCounterDedup = pgTable(
   (t) => [
     primaryKey({ columns: [t.counterKey, t.ipHash] }),
     incidentOwnershipFk("click_counter_dedup", t),
+    tenantScopeIndex("click_counter_dedup", t),
   ],
 );
 
@@ -852,6 +887,7 @@ export const contactMessages = pgTable(
     index("contact_messages_created_at_idx").on(t.createdAt.desc()),
     index("contact_messages_unread_idx").on(t.read, t.createdAt.desc()),
     incidentOwnershipFk("contact_messages", t),
+    tenantScopeIndex("contact_messages", t),
   ],
 );
 
@@ -892,6 +928,7 @@ export const volunteers = pgTable(
     index("volunteers_status_idx").on(t.status, t.createdAt.desc()),
     uniqueIndex("volunteers_code_unique").on(t.code),
     incidentOwnershipFk("volunteers", t),
+    tenantScopeIndex("volunteers", t),
   ],
 );
 
@@ -916,6 +953,7 @@ export const volunteerCheckins = pgTable(
     index("volunteer_checkins_volunteer_idx").on(t.volunteerId, t.createdAt.desc()),
     index("volunteer_checkins_created_at_idx").on(t.createdAt.desc()),
     incidentOwnershipFk("volunteer_checkins", t),
+    tenantScopeIndex("volunteer_checkins", t),
   ],
 );
 
@@ -946,6 +984,7 @@ export const volunteerTasks = pgTable(
   (t) => [
     index("volunteer_tasks_status_idx").on(t.status, t.createdAt.desc()),
     incidentOwnershipFk("volunteer_tasks", t),
+    tenantScopeIndex("volunteer_tasks", t),
   ],
 );
 
@@ -968,6 +1007,7 @@ export const volunteerAssignments = pgTable(
     index("volunteer_assignments_task_idx").on(t.taskId),
     index("volunteer_assignments_volunteer_idx").on(t.volunteerId),
     incidentOwnershipFk("volunteer_assignments", t),
+    tenantScopeIndex("volunteer_assignments", t),
   ],
 );
 
@@ -992,6 +1032,7 @@ export const dataDeletionRequests = pgTable(
     index("ddr_created_at_idx").on(t.createdAt.desc()),
     index("ddr_status_idx").on(t.status, t.createdAt.desc()),
     incidentOwnershipFk("data_deletion_requests", t),
+    tenantScopeIndex("data_deletion_requests", t),
   ],
 );
 
@@ -1014,7 +1055,7 @@ export const analyticsEvents = pgTable(
     createdAt: epochMs("created_at").notNull(),
     ...incidentOwnershipColumns(),
   },
-  (t) => [incidentOwnershipFk("analytics_events", t)],
+  (t) => [incidentOwnershipFk("analytics_events", t), tenantScopeIndex("analytics_events", t)],
 );
 
 /* ---------------------------------------------------- damage_candidates */
@@ -1038,7 +1079,7 @@ export const damageCandidates = pgTable(
     updatedAt: epochMs("updated_at").notNull(),
     ...incidentOwnershipColumns(),
   },
-  (t) => [incidentOwnershipFk("damage_candidates", t)],
+  (t) => [incidentOwnershipFk("damage_candidates", t), tenantScopeIndex("damage_candidates", t)],
 );
 
 /* ------------------------------------------------- unidentified_persons */
@@ -1058,7 +1099,7 @@ export const unidentifiedPersons = pgTable(
     createdAt: epochMs("created_at").notNull(),
     ...incidentOwnershipColumns(),
   },
-  (t) => [incidentOwnershipFk("unidentified_persons", t)],
+  (t) => [incidentOwnershipFk("unidentified_persons", t), tenantScopeIndex("unidentified_persons", t)],
 );
 
 /* =====================================================================
@@ -1120,6 +1161,7 @@ export const hubMissingPersons = pgTable(
       .on(t.id)
       .where(sql`photo_migrated_at IS NULL AND photo_external_url IS NOT NULL`),
     incidentOwnershipFk("hub_missing_persons", t),
+    tenantScopeIndex("hub_missing_persons", t),
   ],
 );
 
@@ -1137,6 +1179,7 @@ export const hubCheckins = pgTable(
     uniqueIndex("idx_hub_checkins_hubid").on(t.hubId),
     index("idx_hub_checkins_source").on(t.source),
     incidentOwnershipFk("hub_checkins", t),
+    tenantScopeIndex("hub_checkins", t),
   ],
 );
 
@@ -1154,6 +1197,7 @@ export const hubHelpRequests = pgTable(
     uniqueIndex("idx_hub_helpreq_hubid").on(t.hubId),
     index("idx_hub_helpreq_source").on(t.source),
     incidentOwnershipFk("hub_help_requests", t),
+    tenantScopeIndex("hub_help_requests", t),
   ],
 );
 
@@ -1170,6 +1214,7 @@ export const hubHelpOffers = pgTable(
     uniqueIndex("idx_hub_helpoffer_hubid").on(t.hubId),
     index("idx_hub_helpoffer_source").on(t.source),
     incidentOwnershipFk("hub_help_offers", t),
+    tenantScopeIndex("hub_help_offers", t),
   ],
 );
 
@@ -1187,6 +1232,7 @@ export const hubDamagedBuildings = pgTable(
     uniqueIndex("idx_hub_damaged_hubid").on(t.hubId),
     index("idx_hub_damaged_source").on(t.source),
     incidentOwnershipFk("hub_damaged_buildings", t),
+    tenantScopeIndex("hub_damaged_buildings", t),
   ],
 );
 
@@ -1202,7 +1248,7 @@ export const hubSyncState = pgTable(
     cycleCompletedAt: epochMs("cycle_completed_at"),
     ...incidentOwnershipColumns(),
   },
-  (t) => [incidentOwnershipFk("hub_sync_state", t)],
+  (t) => [incidentOwnershipFk("hub_sync_state", t), tenantScopeIndex("hub_sync_state", t)],
 );
 
 /* ============================================================================
@@ -1384,7 +1430,7 @@ export const auditLog = pgTable(
     ipHash: text("ip_hash"),
     createdAt: epochMs("created_at").notNull(),
     scopeType: text("scope_type"),
-    ...incidentOwnershipColumns(),
+    ...mixedScopeOwnershipColumns(),
   },
   (t) => [
     index("idx_audit_created").on(t.createdAt.desc()),
@@ -1459,6 +1505,7 @@ export const apiKeys = pgTable(
     uniqueIndex("idx_api_keys_hash").on(t.keyHash),
     index("idx_api_keys_user").on(t.userId),
     incidentOwnershipFk("api_keys", t),
+    tenantScopeIndex("api_keys", t),
   ],
 );
 
@@ -1489,6 +1536,7 @@ export const hubCredentials = pgTable(
     uniqueIndex("idx_hub_credentials_role").on(t.pgRole),
     index("idx_hub_credentials_active").on(t.revokedAt),
     incidentOwnershipFk("hub_credentials", t),
+    tenantScopeIndex("hub_credentials", t),
   ],
 );
 
@@ -1518,6 +1566,7 @@ export const personRecords = pgTable(
   (t) => [
     uniqueIndex("idx_person_records_record").on(t.recordType, t.recordId),
     incidentOwnershipFk("person_records", t),
+    tenantScopeIndex("person_records", t),
   ],
 );
 
@@ -1549,6 +1598,7 @@ export const personLinks = pgTable(
     uniqueIndex("idx_person_links_pair").on(t.prnA, t.prnB),
     index("idx_person_links_queue").on(t.status, t.proposedAt),
     incidentOwnershipFk("person_links", t),
+    tenantScopeIndex("person_links", t),
   ],
 );
 
@@ -1574,6 +1624,7 @@ export const personLinkDecisions = pgTable(
   (t) => [
     index("idx_person_link_decisions_link").on(t.linkId, t.decidedAt),
     incidentOwnershipFk("person_link_decisions", t),
+    tenantScopeIndex("person_link_decisions", t),
   ],
 );
 
@@ -1589,7 +1640,7 @@ export const personClusters = pgTable(
     createdAt: epochMs("created_at").notNull(),
     ...incidentOwnershipColumns(),
   },
-  (t) => [incidentOwnershipFk("person_clusters", t)],
+  (t) => [incidentOwnershipFk("person_clusters", t), tenantScopeIndex("person_clusters", t)],
 );
 
 export const personClusterMembers = pgTable(
@@ -1611,6 +1662,7 @@ export const personClusterMembers = pgTable(
       .where(sql`removed_at IS NULL`),
     index("idx_person_cluster_members_cluster").on(t.clusterId, t.removedAt),
     incidentOwnershipFk("person_cluster_members", t),
+    tenantScopeIndex("person_cluster_members", t),
   ],
 );
 
@@ -1646,6 +1698,7 @@ export const recordStatusSignals = pgTable(
       .where(sql`status = 'pending'`),
     index("idx_record_status_signals_queue").on(t.status, t.createdAt),
     incidentOwnershipFk("record_status_signals", t),
+    tenantScopeIndex("record_status_signals", t),
   ],
 );
 
@@ -1698,5 +1751,6 @@ export const failedSubmissions = pgTable(
   (t) => [
     index("idx_failed_submissions_pending").on(t.replayedAt, t.createdAt),
     incidentOwnershipFk("failed_submissions", t),
+    tenantScopeIndex("failed_submissions", t),
   ],
 );

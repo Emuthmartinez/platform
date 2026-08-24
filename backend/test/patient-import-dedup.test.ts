@@ -12,7 +12,7 @@
  * PII sintética: cédulas/nombres demo, nunca datos reales.
  */
 import { beforeAll, describe, expect, it } from "vitest";
-import "./helpers";
+import { testTenantOwnership } from "./helpers";
 import { randomUUID } from "crypto";
 
 beforeAll(async () => {
@@ -25,7 +25,7 @@ async function freshHospital(): Promise<{ id: string; name: string }> {
   const db = getDb();
   const id = randomUUID();
   const name = `Hospital Dedup ${id.slice(0, 8)}`;
-  await db.insert(schema.hospitals).values({ id, name, createdAt: Date.now() });
+  await db.insert(schema.hospitals).values({ id, name, createdAt: Date.now(), ...testTenantOwnership() });
   return { id, name };
 }
 

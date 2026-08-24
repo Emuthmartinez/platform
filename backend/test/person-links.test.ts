@@ -22,7 +22,7 @@ import { and, eq } from "drizzle-orm";
 import { beforeAll, describe, expect, it } from "vitest";
 import "./helpers";
 import request from "supertest";
-import { makeUserWithCaps } from "./helpers";
+import { makeUserWithCaps, testTenantOwnership} from "./helpers";
 
 let app: import("express").Express;
 let db: typeof import("@/db");
@@ -56,7 +56,8 @@ async function seedMissing(opts: { name: string; age?: number | null; documentHa
     age: opts.age ?? null,
     documentHash: opts.documentHash ?? null,
     createdAt: Date.now(),
-  });
+      ...testTenantOwnership(),
+    });
   return id;
 }
 
@@ -86,6 +87,7 @@ async function seedProposedLink(prnX: string, prnY: string, evidenceClass = "man
       method: "manual",
       matcherVersion: null,
       proposedAt: Date.now(),
+      ...testTenantOwnership(),
     })
     .onConflictDoNothing();
   return id;
@@ -114,6 +116,7 @@ async function seedConfirmedLinkDirect(prnX: string, prnY: string, evidenceClass
       method: "manual",
       matcherVersion: null,
       proposedAt: Date.now(),
+      ...testTenantOwnership(),
     })
     .onConflictDoNothing();
   return id;
@@ -126,7 +129,8 @@ async function seedCluster(): Promise<string> {
     id,
     status: "reported_missing",
     createdAt: Date.now(),
-  });
+      ...testTenantOwnership(),
+    });
   return id;
 }
 
@@ -143,7 +147,8 @@ async function seedLiveMembership(prn: string, clusterId: string): Promise<void>
     addedAt: Date.now(),
     removedAt: null,
     addedBy: "system",
-  });
+      ...testTenantOwnership(),
+    });
 }
 
 async function rawLink(linkId: string): Promise<typeof db.schema.personLinks.$inferSelect | null> {
@@ -604,7 +609,8 @@ describe("orden del par (R16/propose)", () => {
         method: "manual",
         matcherVersion: null,
         proposedAt: Date.now(),
-      }),
+      ...testTenantOwnership(),
+    }),
     ).rejects.toThrow();
   });
 });

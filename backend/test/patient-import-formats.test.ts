@@ -20,7 +20,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import "./helpers";
 import request from "supertest";
 
-import { ensureSeed, makeUserWithCaps } from "./helpers";
+import { ensureSeed, makeUserWithCaps, testTenantOwnership} from "./helpers";
 import { buildXlsxCorruptDeflate, buildXlsxShared } from "./xlsx-fixture";
 import { CONTENT_TYPE, parseImportFile } from "@/services/patient-import-parse";
 
@@ -39,7 +39,7 @@ async function makeHospital(name: string): Promise<string> {
   const { getDb, schema } = await import("@/db");
   const db = getDb();
   const id = randomUUID();
-  await db.insert(schema.hospitals).values({ id, name, createdAt: Date.now() });
+  await db.insert(schema.hospitals).values({ id, name, createdAt: Date.now(), ...testTenantOwnership() });
   return id;
 }
 

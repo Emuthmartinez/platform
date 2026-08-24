@@ -19,10 +19,12 @@
     "worker": "tsx worker/index.ts",
     "db:generate": "drizzle-kit generate --config ../infra/db/drizzle.config.ts",
     "check:schema-drift": "tsx worker/check-schema-drift.ts",
+    "check:platform-schema": "tsx worker/check-platform-schema.ts",
     "check:table-classification": "tsx worker/check-table-classification.ts",
     "check:migration-journal": "tsx worker/check-migration-journal.ts",
     "observe:db": "tsx worker/observe-db.ts",
-    "ops:backfill": "tsx worker/ops-backfill.ts"
+    "ops:backfill": "tsx worker/ops-backfill.ts",
+    "ops:tighten": "tsx worker/ops-tighten.ts"
   },
   "dependencies": {
     "@asteasolutions/zod-to-openapi": "^7.3.4",

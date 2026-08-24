@@ -1,7 +1,7 @@
 /**
  * Dual-write helpers for tenant-scoped rows (U18 / KTD6 C1).
  *
- * Columns stay nullable until U8. Callers pass an explicit TenantScope;
+ * Columns are NOT NULL after U8 tighten. Callers pass an explicit TenantScope;
  * AsyncLocalStorage is not an authorization source (KTD13).
  */
 import { sql, type SQL } from "drizzle-orm";

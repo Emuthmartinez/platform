@@ -13,10 +13,11 @@ Colombia staging stays on this repository's Workers. Switch back and
 forth by reverting the Worker version or the staging pull request. Do not
 point DNS, custom domains, or Worker routes at `Emuthmartinez/platform`.
 
-Dual-write is expand-only:
+Dual-write remains in effect. After `0024_tenant_tighten.sql`, incident-scoped
+`organization_id` / `incident_id` are NOT NULL:
 
-- `organization_id` / `incident_id` stay nullable until U8.
-- A previous Worker version ignores the new columns.
+- A previous Worker that omitted those columns will fail inserts.
+- `audit_log` stays mixed-scope and nullable.
 - Queue producers still emit the legacy v1 body (`schemaVersion` absent).
   Consumers keep the U20 Colombia compatibility decoder.
 

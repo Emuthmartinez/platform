@@ -41,6 +41,15 @@ process.env.RATE_LIMIT_DISABLED = "1";
 export const SYNTHETIC_PNG_DATA_URL =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
 
+/** Incident ownership for local/CI fixtures after U8 tighten.
+ *  IDs match `COLOMBIA_*` in src/lib/colombia-tenant.ts. */
+export function testTenantOwnership() {
+  return {
+    organizationId: "org_mallanet",
+    incidentId: "inc_terremoto_colombia_2026",
+  };
+}
+
 /**
  * Claves que NUNCA deben aparecer en un cuerpo de respuesta pública (contexto
  * humanitario): la columna `photo` cruda (base64), el hash/IP del remitente, el
