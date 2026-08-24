@@ -172,5 +172,8 @@ incident exists (U27).
   compatibility path.
 - U8 reports-domain backfill commits more than one bounded batch, resumes
   after interrupt, and leaves zero NULL tenant columns
-  (`backend/test/ops-backfill.test.ts`). Do not treat that as staging
-  evidence. A human must still run count-only then apply on Neon direct.
+  (`backend/test/ops-backfill.test.ts`). Non-`id` primary keys
+  (`click_counters.key`, `missing_person_suppressions.legacy_id`,
+  `person_records.prn`) are covered in the same suite. Do not treat local
+  tests as Colombia staging evidence. This clone does not run the runner
+  against terremotocolombia.co Neon.

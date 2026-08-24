@@ -40,6 +40,27 @@ function dbUrl(): string {
   return url;
 }
 
+async function resetProgress(): Promise<void> {
+  await getDb().execute(sql`
+    CREATE TABLE IF NOT EXISTS ops_backfill_progress (
+      operation_id text NOT NULL,
+      domain text NOT NULL,
+      table_name text NOT NULL,
+      cursor_json text,
+      rows_updated bigint NOT NULL DEFAULT 0,
+      batches_committed integer NOT NULL DEFAULT 0,
+      last_batch_txid text,
+      last_batch_checksum text,
+      manifest_checksum text NOT NULL,
+      status text NOT NULL,
+      operator text,
+      updated_at bigint NOT NULL,
+      PRIMARY KEY (operation_id, domain, table_name)
+    )
+  `);
+  await getDb().execute(sql`DELETE FROM ops_backfill_progress`);
+}
+
 async function cleanupFixtures(): Promise<void> {
   const db = getDb();
   await db.execute(
@@ -156,6 +177,41 @@ describe("U8 ops-backfill guards", () => {
     expect(canonicalJson({ b: 1, a: 2 })).toBe('{"a":2,"b":1}');
   });
 
+  it("lists remaining incident domains and non-id primary keys", () => {
+    const manifest = loadBackfillManifest(MANIFEST_PATH);
+    expect(Object.keys(manifest.domains).sort()).toEqual([
+      "campaign",
+      "family-search",
+      "hospitals",
+      "hub",
+      "ops",
+      "reports",
+      "volunteers",
+    ]);
+    expect(
+      manifest.domains["family-search"]?.tables.find(
+        (t) => t.name === "missing_person_suppressions",
+      )?.pk,
+    ).toEqual(["legacy_id"]);
+    expect(
+      manifest.domains["family-search"]?.tables.find(
+        (t) => t.name === "person_records",
+      )?.pk,
+    ).toEqual(["prn"]);
+    expect(
+      manifest.domains.ops?.tables.find((t) => t.name === "click_counters")
+        ?.pk,
+    ).toEqual(["key"]);
+    expect(
+      manifest.domains.ops?.tables.find((t) => t.name === "click_counter_dedup")
+        ?.pk,
+    ).toEqual(["counter_key", "ip_hash"]);
+    expect(
+      manifest.domains.hub?.tables.find((t) => t.name === "hub_sync_state")
+        ?.pk,
+    ).toEqual(["type"]);
+  });
+
   it("does not import seedAuth or migrate.ts", () => {
     const src = readFileSync(WORKER_SRC, "utf8");
     expect(src).not.toMatch(/@\/auth\/seed/);
@@ -167,6 +223,7 @@ describe("U8 ops-backfill guards", () => {
 describe("U8 ops-backfill reports domain", () => {
   beforeAll(async () => {
     await ensureSeed();
+    await resetProgress();
     await cleanupFixtures();
     await runDomainBackfill({
       databaseUrl: dbUrl(),
@@ -474,5 +531,164 @@ describe("U8 ops-backfill reports domain", () => {
     expect(
       result.tables.find((t) => t.table === "report_confirmations")?.rowsUpdated,
     ).toBe(1);
+  });
+});
+
+describe("U8 ops-backfill non-id primary keys", () => {
+  async function cleanupNonIdFixtures(): Promise<void> {
+    await getDb().execute(
+      sql`DELETE FROM click_counter_dedup WHERE counter_key LIKE ${PREFIX + "%"}`,
+    );
+    await getDb().execute(
+      sql`DELETE FROM click_counters WHERE key LIKE ${PREFIX + "%"}`,
+    );
+    await getDb().execute(
+      sql`DELETE FROM missing_person_suppressions WHERE legacy_id LIKE ${PREFIX + "%"}`,
+    );
+    await getDb().execute(
+      sql`DELETE FROM volunteers WHERE id LIKE ${PREFIX + "%"}`,
+    );
+  }
+
+  beforeAll(async () => {
+    await ensureSeed();
+    await resetProgress();
+    await cleanupNonIdFixtures();
+  });
+
+  afterAll(async () => {
+    await cleanupNonIdFixtures();
+  });
+
+  it("stamps click_counters by key and click_counter_dedup by composite PK", async () => {
+    await getDb().insert(schema.clickCounters).values({
+      key: `${PREFIX}click-key`,
+      count: 1,
+      organizationId: null,
+      incidentId: null,
+    });
+    await getDb().insert(schema.clickCounterDedup).values({
+      counterKey: `${PREFIX}click-key`,
+      ipHash: "demo-ip-hash",
+      createdAt: Date.now(),
+      organizationId: null,
+      incidentId: null,
+    });
+
+    const result = await runDomainBackfill({
+      databaseUrl: dbUrl(),
+      args: {
+        domain: "ops",
+        mode: "apply",
+        batchSize: 50,
+        operator: "u8-test",
+      },
+      nodeEnv: "test",
+    });
+
+    expect(result.tables.every((t) => t.unscopedAfter === 0)).toBe(true);
+    expect(
+      result.tables.find((t) => t.table === "click_counters")?.rowsUpdated,
+    ).toBeGreaterThanOrEqual(1);
+    expect(
+      result.tables.find((t) => t.table === "click_counter_dedup")
+        ?.rowsUpdated,
+    ).toBeGreaterThanOrEqual(1);
+
+    const [counter] = await getDb()
+      .select({
+        organizationId: schema.clickCounters.organizationId,
+        incidentId: schema.clickCounters.incidentId,
+      })
+      .from(schema.clickCounters)
+      .where(eq(schema.clickCounters.key, `${PREFIX}click-key`));
+    expect(counter).toEqual({
+      organizationId: COLOMBIA_ORGANIZATION_ID,
+      incidentId: COLOMBIA_INCIDENT_ID,
+    });
+  });
+
+  it("stamps missing_person_suppressions by legacy_id", async () => {
+    await getDb().insert(schema.missingPersonSuppressions).values({
+      legacyId: `${PREFIX}suppression`,
+      reason: "demo",
+      createdAt: Date.now(),
+      organizationId: null,
+      incidentId: null,
+    });
+
+    const manifest = loadBackfillManifest(MANIFEST_PATH);
+    const family = manifest.domains["family-search"];
+    if (!family) throw new Error("family-search domain missing");
+    const result = await runDomainBackfill({
+      databaseUrl: dbUrl(),
+      args: {
+        domain: "family-search",
+        mode: "apply",
+        batchSize: 50,
+        operator: "u8-test",
+      },
+      nodeEnv: "test",
+      manifest: {
+        ...manifest,
+        domains: {
+          "family-search": {
+            migration: family.migration,
+            tables: family.tables.filter(
+              (t) => t.name === "missing_person_suppressions",
+            ),
+          },
+        },
+      },
+    });
+
+    const suppressions = result.tables.find(
+      (t) => t.table === "missing_person_suppressions",
+    );
+    expect(suppressions?.unscopedAfter).toBe(0);
+    expect(suppressions?.status).toBe("complete");
+
+    const [row] = await getDb()
+      .select({
+        organizationId: schema.missingPersonSuppressions.organizationId,
+        incidentId: schema.missingPersonSuppressions.incidentId,
+      })
+      .from(schema.missingPersonSuppressions)
+      .where(
+        eq(schema.missingPersonSuppressions.legacyId, `${PREFIX}suppression`),
+      );
+    expect(row).toEqual({
+      organizationId: COLOMBIA_ORGANIZATION_ID,
+      incidentId: COLOMBIA_INCIDENT_ID,
+    });
+  });
+
+  it("stamps volunteers by id", async () => {
+    await getDb().insert(schema.volunteers).values({
+      id: `${PREFIX}volunteer`,
+      name: "DEMO U8 volunteer",
+      contact: "demo-u8-volunteer@test.local",
+      code: "U8BF01",
+      offer: "demo",
+      zone: "demo",
+      createdAt: Date.now(),
+      organizationId: null,
+      incidentId: null,
+    });
+
+    const result = await runDomainBackfill({
+      databaseUrl: dbUrl(),
+      args: {
+        domain: "volunteers",
+        mode: "apply",
+        batchSize: 50,
+        operator: "u8-test",
+      },
+      nodeEnv: "test",
+    });
+
+    const volunteers = result.tables.find((t) => t.table === "volunteers");
+    expect(volunteers?.unscopedAfter).toBe(0);
+    expect(volunteers?.status).toBe("complete");
   });
 });

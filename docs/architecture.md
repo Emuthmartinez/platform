@@ -398,10 +398,13 @@ surface. Turnstile and rate limiting remain the real protection.
   It is not `backend/worker/migrate.ts`. It does not call `seedAuth()`.
   Manifests and verification SQL live in `infra/db/operations/`. Run
   `count-only` first, then `apply`, one domain at a time, against Neon
-  **direct** (never `-pooler`). An agent never runs this against staging or
-  production. This step does not set columns to `NOT NULL`. That tighten
-  is a later human-gated migration after verification shows zero NULL
-  rows. First domain: citizen reports (`0015`).
+  **direct** (never `-pooler`). This clone does not run the runner against
+  Colombia staging or production. This step does not set columns to
+  `NOT NULL`. That tighten is a later human-gated migration after
+  verification shows zero NULL rows. Domains: `reports` (`0015`),
+  `volunteers` (`0016`), `hospitals` (`0017`), `family-search` (`0018`),
+  `hub` (`0019`), `ops` (`0020`), `campaign` (`0022`). Skip catalog
+  tables and mixed-scope `audit_log`.
 - **Public replica (SQL hub, optional, `ENABLE_HUB_FEDERATION`).** A second,
   read-only Postgres instance can receive, through **logical
   replication**, only the tables and columns marked publishable (with no

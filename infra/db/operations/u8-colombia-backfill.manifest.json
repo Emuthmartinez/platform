@@ -16,6 +16,80 @@
         { "name": "report_confirmations", "pk": ["report_id", "ip_hash"] },
         { "name": "reports", "pk": ["id"] }
       ]
+    },
+    "volunteers": {
+      "migration": "0016_volunteers_tenant.sql",
+      "tables": [
+        { "name": "volunteer_assignments", "pk": ["id"] },
+        { "name": "volunteer_checkins", "pk": ["id"] },
+        { "name": "volunteer_tasks", "pk": ["id"] },
+        { "name": "volunteers", "pk": ["id"] }
+      ]
+    },
+    "hospitals": {
+      "migration": "0017_hospitals_tenant.sql",
+      "tables": [
+        { "name": "hospital_patients", "pk": ["id"] },
+        { "name": "hospital_poc_assignments", "pk": ["id"] },
+        { "name": "hospital_supply_events", "pk": ["id"] },
+        { "name": "hospital_supply_help_requests", "pk": ["id"] },
+        { "name": "hospital_supply_needs", "pk": ["id"] },
+        { "name": "hospital_supply_statuses", "pk": ["id"] },
+        { "name": "hospitals", "pk": ["id"] }
+      ]
+    },
+    "family-search": {
+      "migration": "0018_family_search_tenant.sql",
+      "tables": [
+        { "name": "data_deletion_requests", "pk": ["id"] },
+        { "name": "failed_submissions", "pk": ["id"] },
+        { "name": "missing_person_suppressions", "pk": ["legacy_id"] },
+        { "name": "missing_persons", "pk": ["id"] },
+        { "name": "missing_pets", "pk": ["id"] },
+        { "name": "ocr_corrections", "pk": ["id"] },
+        { "name": "official_deceased_lists", "pk": ["id"] },
+        { "name": "official_deceased_records", "pk": ["id"] },
+        { "name": "patient_import_rows", "pk": ["id"] },
+        { "name": "patient_imports", "pk": ["id"] },
+        { "name": "person_cluster_members", "pk": ["id"] },
+        { "name": "person_clusters", "pk": ["id"] },
+        { "name": "person_link_decisions", "pk": ["id"] },
+        { "name": "person_links", "pk": ["id"] },
+        { "name": "person_records", "pk": ["prn"] },
+        { "name": "record_status_signals", "pk": ["id"] },
+        { "name": "unidentified_persons", "pk": ["id"] }
+      ]
+    },
+    "hub": {
+      "migration": "0019_hub_tenant.sql",
+      "tables": [
+        { "name": "hub_checkins", "pk": ["id"] },
+        { "name": "hub_credentials", "pk": ["id"] },
+        { "name": "hub_damaged_buildings", "pk": ["id"] },
+        { "name": "hub_help_offers", "pk": ["id"] },
+        { "name": "hub_help_requests", "pk": ["id"] },
+        { "name": "hub_missing_persons", "pk": ["id"] },
+        { "name": "hub_sync_state", "pk": ["type"] }
+      ]
+    },
+    "ops": {
+      "migration": "0020_ops_tenant.sql",
+      "tables": [
+        { "name": "api_keys", "pk": ["id"] },
+        { "name": "click_counter_dedup", "pk": ["counter_key", "ip_hash"] },
+        { "name": "click_counters", "pk": ["key"] },
+        { "name": "donations", "pk": ["id"] }
+      ]
+    },
+    "campaign": {
+      "migration": "0022_campaign_tenant.sql",
+      "tables": [
+        { "name": "campaign_site_stewards", "pk": ["id"] },
+        { "name": "campaign_sites", "pk": ["id"] },
+        { "name": "material_pledges", "pk": ["id"] },
+        { "name": "material_receipts", "pk": ["id"] },
+        { "name": "material_shipments", "pk": ["id"] }
+      ]
     }
   }
 }
