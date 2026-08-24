@@ -166,10 +166,18 @@ async function applyOneBatch(
     if (!txid) {
       throw new Error("txid_current() returned no row");
     }
-    const updated = await client.query<Record<string, unknown>>(
-      buildBatchUpdateSql(table.name, table.pk),
-      [organizationId, incidentId, batchSize],
-    );
+    let updated;
+    try {
+      updated = await client.query<Record<string, unknown>>(
+        buildBatchUpdateSql(table.name, table.pk),
+        [organizationId, incidentId, batchSize],
+      );
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      throw new Error(`${table.name}: batch update failed: ${detail}`, {
+        cause: err,
+      });
+    }
     await client.query("COMMIT");
     return { rows: updated.rows, txid };
   } catch (err) {
