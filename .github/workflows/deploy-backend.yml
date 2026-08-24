@@ -1,10 +1,9 @@
 name: Deploy backend
 
-# PLATFORM ISOLATION (U6): this repository must not ship traffic to
-# api.terremotocolombia.co. Jobs run only when ENABLE_PLATFORM_DEPLOYS
-# is the string true. Do not copy Colombia Doppler tokens here.
-#
-# Despliega SOLO la API (Worker terremotocolombia-api).
+# PLATFORM ISOLATION: this repository must not ship traffic to Colombia.
+# Jobs run only when ENABLE_PLATFORM_DEPLOYS is the string true.
+# Do not copy Colombia Doppler tokens here.
+# Isolated Worker: mallanet-platform-api (staging: mallanet-platform-api-staging).
 #
 # MANUAL (workflow_dispatch) desde 2026-08-11 por la tarde, decision del
 # mantenedor tras el incidente de las 6h de 503: mergear a main ya NO
@@ -126,7 +125,7 @@ jobs:
         run: |
           set -euo pipefail
           for i in $(seq 1 10); do
-            code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 https://api.terremotocolombia.co/api/readyz || echo 000)
+            code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 https://mallanet-platform-api.e-muth-martinez.workers.dev/api/readyz || echo 000)
             echo "intento $i -> HTTP $code"
             [ "$code" = "200" ] && exit 0
             sleep 10

@@ -145,11 +145,15 @@ function AuthedShell({ children }: { children: ReactNode }) {
             </ul>
           )}
 
-          {/* Réplica pública (SQL hub): SOLO super admin. mirror:manage NO está en
-              el comodín "*" del admin normal, así que un admin corriente no lo ve. */}
-          {can("mirror:manage") && (
+          {/* Superadmin: réplica pública + catálogo de deployments. */}
+          {(can("mirror:manage") || can("deployment:manage")) && (
             <ul className="mt-1 flex flex-col gap-1">
-              <NavLink href="/hub-credentials" label="Réplica pública" pathname={pathname} />
+              {can("mirror:manage") && (
+                <NavLink href="/hub-credentials" label="Réplica pública" pathname={pathname} />
+              )}
+              {can("deployment:manage") && (
+                <NavLink href="/deployments" label="Deployments" pathname={pathname} />
+              )}
             </ul>
           )}
 

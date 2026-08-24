@@ -4,7 +4,7 @@
  * Escrito a mano (no fábrica CRUD) porque los verbos son irregulares:
  *   GET    /            (user:read)    lista usuarios
  *   GET    /:id         (user:read)    un usuario
- *   PATCH  /:id         (user:edit)    cambia rol / estado / nombre
+ *   PATCH  /:id         (user:edit)    cambia rol / estado / nombre / superadmin
  *   DELETE /:id         (user:delete)  desactiva (soft delete)
  *
  * `invite` vive en routes/auth.ts (user:invite). Todas las rutas: rateLimit +
@@ -17,7 +17,7 @@ import { z } from "zod";
 import { asyncHandler, rateLimit, validate } from "@/middleware";
 import { requireCapability } from "@/middleware/auth";
 import { writeAudit } from "@/auth/audit";
-import { badRequest, notFound } from "@/lib/errors";
+import { badRequest, forbidden, notFound } from "@/lib/errors";
 import * as service from "@/services/users";
 
 export const usersRouter = Router();
@@ -28,6 +28,7 @@ const updateBody = z
     roleId: z.string().min(1).nullable().optional(),
     status: z.enum(["active", "disabled"]).optional(),
     name: z.string().trim().max(120).optional(),
+    isSuperAdmin: z.boolean().optional(),
   })
   .refine((o) => Object.keys(o).length > 0, "Envía al menos un campo a actualizar.");
 
@@ -65,6 +66,15 @@ usersRouter.patch(
     if (id === req.user!.id) {
       if (input.status === "disabled") throw badRequest("No puedes desactivar tu propia cuenta.");
       if (input.roleId === null) throw badRequest("No puedes quitarte tu propio rol.");
+    }
+
+    if (input.isSuperAdmin !== undefined) {
+      if (req.user!.apiKeyScopes) {
+        throw forbidden("Cambia superadmin desde una sesión iniciada (no con una API key).");
+      }
+      if (!req.user!.isSuperAdmin) {
+        throw forbidden("Solo un superadmin puede conceder o quitar superadmin.");
+      }
     }
 
     const item = await service.updateUser(id, input);

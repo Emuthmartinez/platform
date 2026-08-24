@@ -26,12 +26,12 @@ ENVIRONMENT="${1:-staging}"
 
 case "$ENVIRONMENT" in
   staging)
-    WEB="https://staging.terremotocolombia.co"
-    API="https://api-staging.terremotocolombia.co"
+    WEB="https://mallanet-platform-web-staging.e-muth-martinez.workers.dev"
+    API="https://mallanet-platform-api-staging.e-muth-martinez.workers.dev"
     ;;
   production|prod)
-    WEB="https://terremotocolombia.co"
-    API="https://api.terremotocolombia.co"
+    WEB="https://mallanet-platform-web.e-muth-martinez.workers.dev"
+    API="https://mallanet-platform-api.e-muth-martinez.workers.dev"
     ;;
   *)
     echo "Uso: $0 [staging|production]" >&2

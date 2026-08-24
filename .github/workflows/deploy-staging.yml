@@ -1,14 +1,13 @@
 name: Deploy staging
 
-# PLATFORM ISOLATION (U6): this clone must not deploy Colombia staging
-# (staging.terremotocolombia.co). Jobs run only when ENABLE_PLATFORM_DEPLOYS
-# is the string true, after isolated platform staging exists. Push to the
-# staging branch never deploys from this clone.
+# PLATFORM ISOLATION: this clone must not deploy Colombia.
+# Jobs run only when ENABLE_PLATFORM_DEPLOYS is the string true.
 #
-# Despliega el entorno de STAGING completo:
-#   frontend -> terremotocolombia-web-staging  (staging.terremotocolombia.co)
-#   API      -> terremotocolombia-api-staging  (api-staging.terremotocolombia.co)
-#   base     -> rama `staging` de Neon (datos aparte de produccion)
+# Isolated staging Workers (workers.dev):
+#   API   -> mallanet-platform-api-staging
+#   admin -> mallanet-platform-admin-staging
+#   web   -> mallanet-platform-web-staging
+# Neon: mallanet-platform (hidden-cell), not Colombia.
 #
 # A DIFERENCIA DE PRODUCCION, AQUI EL BACKEND TAMBIEN SE DESPLIEGA SOLO.
 # Es justo el motivo de existir de staging: si probar un cambio de API exigiera
@@ -102,7 +101,7 @@ jobs:
         run: |
           set -euo pipefail
           for i in $(seq 1 10); do
-            code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 https://admin-staging.terremotocolombia.co/api/health || echo 000)
+            code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 https://mallanet-platform-admin-staging.e-muth-martinez.workers.dev/api/health || echo 000)
             echo "intento $i -> HTTP $code"
             [ "$code" = "200" ] && exit 0
             sleep 10
@@ -148,27 +147,14 @@ jobs:
             CLOUDFLARE_ACCOUNT_ID="$CLOUDFLARE_ACCOUNT_ID" \
             npx wrangler deploy --env staging --old-asset-ttl 86400'
 
-      # Misma purga del SW que en produccion (ver deploy-frontend.yml): el
-      # borde lo retiene y un deploy del service worker no llegaria nunca.
-      - name: Purgar service worker del borde
-        env:
-          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN_STAGING }}
-        run: |
-          doppler run --command '
-            curl -sf -X POST "https://api.cloudflare.com/client/v4/zones/494895363b65d50699864543d005238a/purge_cache" \
-              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN_COLOMBIA_SCOPED" \
-              -H "Content-Type: application/json" \
-              --data "{\"files\":[\"https://staging.terremotocolombia.co/sw.js\"]}"'
-
       - name: Smoke check
         run: |
           set -euo pipefail
           for i in $(seq 1 10); do
-            web=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 https://staging.terremotocolombia.co/ || echo 000)
-            api=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 https://api-staging.terremotocolombia.co/api/readyz || echo 000)
-            echo "intento $i -> web:$web api:$api"
-            [ "$web" = "200" ] && [ "$api" = "200" ] && exit 0
+            api=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 https://mallanet-platform-api-staging.e-muth-martinez.workers.dev/api/readyz || echo 000)
+            echo "intento $i -> api:$api"
+            [ "$api" = "200" ] && exit 0
             sleep 10
           done
-          echo "Staging no respondio 200 en web y api"
+          echo "Isolated staging API did not return 200"
           exit 1

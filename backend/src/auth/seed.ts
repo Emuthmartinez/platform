@@ -12,9 +12,14 @@
  * Env: SEED_ADMIN_EMAIL (opcional), SEED_ADMIN_PASSWORD (opcional).
  */
 import { randomUUID } from "crypto";
-import { sql } from "drizzle-orm";
+import { inArray, sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
-import { CAPABILITIES, SYSTEM_ADMIN_ROLE, MIRROR_MANAGE } from "@/auth/capabilities";
+import {
+  CAPABILITIES,
+  SYSTEM_ADMIN_ROLE,
+  isSuperAdminOnlyCapability,
+  SUPERADMIN_ONLY_CAPABILITIES,
+} from "@/auth/capabilities";
 import { hashPassword } from "@/auth/password";
 
 export async function seedAuth(): Promise<void> {
@@ -58,24 +63,25 @@ export async function seedAuth(): Promise<void> {
   }
 
   // Re-vincula TODAS las capacidades al admin (incluye las nuevas en cada deploy),
-  // EXCEPTO mirror:manage: esa NO se concede vía rol — está gateada por el flag
-  // is_super_admin (corte en auth/resolve.ts). Dejarla fuera del bundle evita un
-  // grant inerte que se activaría por error si el corte se quitara. RFC 0006.
+  // EXCEPTO las de superadmin (mirror:manage, deployment:manage): esas NO se
+  // conceden vía rol — están gateadas por is_super_admin en auth/resolve.ts.
   for (const cap of CAPABILITIES) {
-    if (cap.key === MIRROR_MANAGE) continue;
+    if (isSuperAdminOnlyCapability(cap.key)) continue;
     await db
       .insert(schema.roleCapabilities)
       .values({ roleId: adminRoleId, capabilityKey: cap.key })
       .onConflictDoNothing();
   }
-  console.log("[seed] rol 'admin' con todas las capacidades (salvo mirror:manage).");
+  console.log("[seed] rol 'admin' con todas las capacidades (salvo superadmin-only).");
 
-  // Auto-sanación: quita cualquier grant de mirror:manage en CUALQUIER rol (p.ej.
-  // sembrado por una versión anterior del seed). Debe estar SOLO tras el flag
-  // is_super_admin, nunca en un rol. RFC 0006.
+  // Auto-sanación: quita grants de capacidades solo-superadmin en CUALQUIER rol.
   await db
     .delete(schema.roleCapabilities)
-    .where(sql`${schema.roleCapabilities.capabilityKey} = ${MIRROR_MANAGE}`);
+    .where(
+      inArray(schema.roleCapabilities.capabilityKey, [
+        ...SUPERADMIN_ONLY_CAPABILITIES,
+      ]),
+    );
 
   // 2b) `apikey:manage` es self-service: TODO rol la lleva, para que cualquier
   // usuario invitado (cualquier rol) pueda crear/revocar SUS PROPIAS API keys.

@@ -176,3 +176,30 @@ export async function makeAdmin(): Promise<MadeUser & { token: string }> {
   });
   return { id, email, roleId, token: await tokenFor(id) };
 }
+
+/** Seed-admin role plus users.is_super_admin (mirror/deployment caps). */
+export async function makeSuperAdmin(): Promise<MadeUser & { token: string }> {
+  const { getDb, schema } = await import("@/db");
+  const { hashPassword } = await import("@/auth/password");
+  const db = getDb();
+  const { eq } = await import("drizzle-orm");
+  const adminRole = await db
+    .select({ id: schema.roles.id })
+    .from(schema.roles)
+    .where(eq(schema.roles.isSystem, true))
+    .limit(1);
+  const roleId = adminRole[0]!.id;
+  const id = randomUUID();
+  const email = `superadmin-${id.slice(0, 8)}@test.local`;
+  await db.insert(schema.users).values({
+    id,
+    email,
+    name: "Superadmin",
+    passwordHash: await hashPassword("adminpass123"),
+    roleId,
+    status: "active",
+    isSuperAdmin: true,
+    createdAt: Date.now(),
+  });
+  return { id, email, roleId, token: await tokenFor(id) };
+}

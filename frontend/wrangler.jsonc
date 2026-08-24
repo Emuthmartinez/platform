@@ -1,10 +1,10 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "terremotocolombia-web",
+  "name": "mallanet-platform-web",
   "main": ".open-next/worker.js",
   "compatibility_date": "2026-08-01",
   "compatibility_flags": ["nodejs_compat"],
-  // KTD7: disable *.workers.dev. Do not add `routes`. Repeat under env.staging.
+  // Isolated clone: staging is workers.dev only. Do not add `routes`.
   "workers_dev": false,
   "assets": {
     "directory": ".open-next/assets",
@@ -31,8 +31,9 @@
   // que no se parece a produccion no prueba nada.
   "env": {
     "staging": {
-      "name": "terremotocolombia-web-staging",
-      "workers_dev": false,
+      "name": "mallanet-platform-web-staging",
+      "workers_dev": true,
+      "preview_urls": false,
       "compatibility_date": "2026-08-01",
       "compatibility_flags": ["nodejs_compat"],
       "assets": {

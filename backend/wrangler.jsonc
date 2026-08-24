@@ -1,17 +1,17 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "terremotocolombia-api",
+  "name": "mallanet-platform-api",
   "main": "src/worker.ts",
   "compatibility_date": "2026-08-01",
   // nodejs_compat da los builtins de Node (http, crypto, buffer, stream) que
   // necesitan Express, helmet, pg y jsonwebtoken.
   "compatibility_flags": ["nodejs_compat"],
-  // KTD7: disable *.workers.dev so unknown hostnames cannot reach the API.
-  // Do not add `routes` — custom domains attach through the account API.
-  // Repeat under env.staging: named environments do not inherit this key.
+  // Isolated clone: root stays off workers.dev so a deploy without --env
+  // cannot publish a public URL. Staging uses workers.dev (no Colombia DNS).
+  // Do not add `routes`.
   "workers_dev": false,
-  // El dominio propio (api.terremotocolombia.co) se adjunta por la API de
-  // cuenta (/accounts/{id}/workers/domains), NO aqui.
+  // Isolated clone: no Colombia custom domain. Do not add `routes`.
+  // Named environments do not inherit workers_dev.
   //
   // Motivo: al declarar `routes`, wrangler llama tambien a
   // /zones/{id}/workers/routes, y el token de cuenta no tiene permiso de zona
@@ -48,7 +48,7 @@
   "ratelimits": [
     {
       "name": "EDGE_RATE_LIMITER",
-      "namespace_id": "2026081201",
+      "namespace_id": "2026082401",
       "simple": { "limit": 240, "period": 60 }
     }
   ],
@@ -65,44 +65,44 @@
   // OJO: `queues` NO se hereda en env.staging (los nombres difieren por
   // entorno); cada bloque declara los suyos.
   //
-  // terremotocolombia-matcher (U8): un mensaje `{ prn }` por registro
+  // mallanet-platform-matcher (U8): un mensaje `{ prn }` por registro
   // recién estampado/editado — dispara la generación de candidatos
   // deterministas. max_batch_size 10 (mensajes livianos, no hay motivo para
   // procesar de a uno como imports) y mismos retries/retry_delay que imports
   // (3 x 30s, un fallo aquí suele ser la DB, no un tercero externo lento).
   "queues": {
     "producers": [
-      { "binding": "NEEDS_QUEUE", "queue": "terremotocolombia-needs" },
-      { "binding": "IMPORTS_QUEUE", "queue": "terremotocolombia-imports" },
-      { "binding": "MATCHER_QUEUE", "queue": "terremotocolombia-matcher" }
+      { "binding": "NEEDS_QUEUE", "queue": "mallanet-platform-needs" },
+      { "binding": "IMPORTS_QUEUE", "queue": "mallanet-platform-imports" },
+      { "binding": "MATCHER_QUEUE", "queue": "mallanet-platform-matcher" }
     ],
     "consumers": [
       {
-        "queue": "terremotocolombia-needs",
+        "queue": "mallanet-platform-needs",
         "max_retries": 5,
         "retry_delay": 60,
         "max_batch_size": 5,
-        "dead_letter_queue": "terremotocolombia-needs-dlq"
+        "dead_letter_queue": "mallanet-platform-needs-dlq"
       },
-      { "queue": "terremotocolombia-needs-dlq", "max_retries": 0 },
+      { "queue": "mallanet-platform-needs-dlq", "max_retries": 0 },
       // Importación de pacientes: lotes pesados → un mensaje por invocación
       // (max_batch_size 1). Reintentos como el BullMQ previo (3, espaciados).
       {
-        "queue": "terremotocolombia-imports",
+        "queue": "mallanet-platform-imports",
         "max_retries": 3,
         "retry_delay": 30,
         "max_batch_size": 1,
-        "dead_letter_queue": "terremotocolombia-imports-dlq"
+        "dead_letter_queue": "mallanet-platform-imports-dlq"
       },
-      { "queue": "terremotocolombia-imports-dlq", "max_retries": 0 },
+      { "queue": "mallanet-platform-imports-dlq", "max_retries": 0 },
       {
-        "queue": "terremotocolombia-matcher",
+        "queue": "mallanet-platform-matcher",
         "max_retries": 3,
         "retry_delay": 30,
         "max_batch_size": 10,
-        "dead_letter_queue": "terremotocolombia-matcher-dlq"
+        "dead_letter_queue": "mallanet-platform-matcher-dlq"
       },
-      { "queue": "terremotocolombia-matcher-dlq", "max_retries": 0 }
+      { "queue": "mallanet-platform-matcher-dlq", "max_retries": 0 }
     ]
   },
   "vars": {
@@ -116,10 +116,10 @@
     "EARTHQUAKES_MAX_LNG": "-66",
     "NODE_ENV": "production",
     "COOKIE_SECURE": "true",
-    "APP_BASE_URL": "https://terremotocolombia.co",
-    "ADMIN_BASE_URL": "https://admin.terremotocolombia.co",
-    "CORS_ORIGINS": "https://terremotocolombia.co,https://www.terremotocolombia.co",
-    "ENABLE_STRIPE_DONATIONS": "true",
+    "APP_BASE_URL": "https://mallanet-platform-web.e-muth-martinez.workers.dev",
+    "ADMIN_BASE_URL": "https://mallanet-platform-admin.e-muth-martinez.workers.dev",
+    "CORS_ORIGINS": "https://mallanet-platform-web.e-muth-martinez.workers.dev,https://mallanet-platform-admin.e-muth-martinez.workers.dev",
+    "ENABLE_STRIPE_DONATIONS": "false",
     // Detras de Cloudflare la unica cabecera de IP no falsificable es esta.
     // X-Forwarded-For la puede poner el cliente.
     "TRUSTED_IP_HEADER": "cf-connecting-ip"
@@ -144,12 +144,13 @@
   // Neon y el binding no se usa (ver src/worker.ts).
   "env": {
     "staging": {
-      "name": "terremotocolombia-api-staging",
-      "workers_dev": false,
+      "name": "mallanet-platform-api-staging",
+      "workers_dev": true,
+      "preview_urls": false,
       "ratelimits": [
         {
           "name": "EDGE_RATE_LIMITER",
-          "namespace_id": "2026081202",
+          "namespace_id": "2026082402",
           "simple": { "limit": 240, "period": 60 }
         }
       ],
@@ -157,35 +158,35 @@
       // se parece a produccion no prueba nada), nombres con sufijo -staging.
       "queues": {
         "producers": [
-          { "binding": "NEEDS_QUEUE", "queue": "terremotocolombia-needs-staging" },
-          { "binding": "IMPORTS_QUEUE", "queue": "terremotocolombia-imports-staging" },
-          { "binding": "MATCHER_QUEUE", "queue": "terremotocolombia-matcher-staging" }
+          { "binding": "NEEDS_QUEUE", "queue": "mallanet-platform-needs-staging" },
+          { "binding": "IMPORTS_QUEUE", "queue": "mallanet-platform-imports-staging" },
+          { "binding": "MATCHER_QUEUE", "queue": "mallanet-platform-matcher-staging" }
         ],
         "consumers": [
           {
-            "queue": "terremotocolombia-needs-staging",
+            "queue": "mallanet-platform-needs-staging",
             "max_retries": 5,
             "retry_delay": 60,
             "max_batch_size": 5,
-            "dead_letter_queue": "terremotocolombia-needs-dlq-staging"
+            "dead_letter_queue": "mallanet-platform-needs-dlq-staging"
           },
-          { "queue": "terremotocolombia-needs-dlq-staging", "max_retries": 0 },
+          { "queue": "mallanet-platform-needs-dlq-staging", "max_retries": 0 },
           {
-            "queue": "terremotocolombia-imports-staging",
+            "queue": "mallanet-platform-imports-staging",
             "max_retries": 3,
             "retry_delay": 30,
             "max_batch_size": 1,
-            "dead_letter_queue": "terremotocolombia-imports-dlq-staging"
+            "dead_letter_queue": "mallanet-platform-imports-dlq-staging"
           },
-          { "queue": "terremotocolombia-imports-dlq-staging", "max_retries": 0 },
+          { "queue": "mallanet-platform-imports-dlq-staging", "max_retries": 0 },
           {
-            "queue": "terremotocolombia-matcher-staging",
+            "queue": "mallanet-platform-matcher-staging",
             "max_retries": 3,
             "retry_delay": 30,
             "max_batch_size": 10,
-            "dead_letter_queue": "terremotocolombia-matcher-dlq-staging"
+            "dead_letter_queue": "mallanet-platform-matcher-dlq-staging"
           },
-          { "queue": "terremotocolombia-matcher-dlq-staging", "max_retries": 0 }
+          { "queue": "mallanet-platform-matcher-dlq-staging", "max_retries": 0 }
         ]
       },
       "vars": {
@@ -195,11 +196,11 @@
         "EARTHQUAKES_MAX_LNG": "-66",
         "NODE_ENV": "production",
         "COOKIE_SECURE": "true",
-        "APP_BASE_URL": "https://staging.terremotocolombia.co",
-        "ADMIN_BASE_URL": "https://admin-staging.terremotocolombia.co",
-        "CORS_ORIGINS": "https://staging.terremotocolombia.co",
+        "APP_BASE_URL": "https://mallanet-platform-web-staging.e-muth-martinez.workers.dev",
+        "ADMIN_BASE_URL": "https://mallanet-platform-admin-staging.e-muth-martinez.workers.dev",
+        "CORS_ORIGINS": "https://mallanet-platform-web-staging.e-muth-martinez.workers.dev,https://mallanet-platform-admin-staging.e-muth-martinez.workers.dev",
         "TRUSTED_IP_HEADER": "cf-connecting-ip",
-        "ENABLE_STRIPE_DONATIONS": "true"
+        "ENABLE_STRIPE_DONATIONS": "false"
       },
       "observability": {
         "enabled": true,

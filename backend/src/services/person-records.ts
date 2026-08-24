@@ -434,7 +434,7 @@ export async function listUnstamped(
 }
 
 /**
- * Encola un mensaje `{ prn }` por PRN en `terremotocolombia-matcher` (U8),
+ * Encola un mensaje `{ prn }` por PRN en `mallanet-platform-matcher` (U8),
  * vía el binding registrado en `lib/job-dispatch.ts` (`MATCHER_QUEUE`) —
  * mismo seam que el resto de productores del repo, pero consultado
  * DIRECTAMENTE (`getQueueProducer`) en vez de por `dispatchJob`: esta cola no
