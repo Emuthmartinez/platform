@@ -198,7 +198,7 @@
         "COOKIE_SECURE": "true",
         "APP_BASE_URL": "https://mallanet-platform-web-staging.e-muth-martinez.workers.dev",
         "ADMIN_BASE_URL": "https://mallanet-platform-admin-staging.e-muth-martinez.workers.dev",
-        "CORS_ORIGINS": "https://mallanet-platform-web-staging.e-muth-martinez.workers.dev,https://mallanet-platform-admin-staging.e-muth-martinez.workers.dev",
+        "CORS_ORIGINS": "https://mallanet-platform-web-staging.e-muth-martinez.workers.dev,https://mallanet-platform-admin-staging.e-muth-martinez.workers.dev,https://staging.terremotocolombia.co",
         "TRUSTED_IP_HEADER": "cf-connecting-ip",
         "ENABLE_STRIPE_DONATIONS": "false"
       },

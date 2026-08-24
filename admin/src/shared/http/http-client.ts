@@ -18,6 +18,29 @@
 import type { ApiError, Result } from "../result";
 import { err, ok } from "../result";
 import { trustedHostnameHeaders } from "../../config/trusted-hostname";
+import { getCloudflareContext } from "@opennextjs/cloudflare";
+
+type FetchInput = Parameters<typeof fetch>[0];
+type FetchInit = Parameters<typeof fetch>[1];
+type FetchLike = (input: FetchInput, init?: FetchInit) => ReturnType<typeof fetch>;
+
+type EmergencyApiBinding = {
+  fetch(input: FetchInput, init?: FetchInit): ReturnType<typeof fetch>;
+};
+
+function platformFetch(): FetchLike {
+  try {
+    const env = getCloudflareContext().env as {
+      EMERGENCY_API?: EmergencyApiBinding;
+    };
+    if (env.EMERGENCY_API) {
+      return (input, init) => env.EMERGENCY_API!.fetch(input, init);
+    }
+  } catch {
+    // next dev and unit tests do not have a Cloudflare request context.
+  }
+  return fetch;
+}
 
 export type RequestOptions = {
   headers?: Record<string, string>;
@@ -64,7 +87,7 @@ export function createHttpClient(config: HttpClientConfig): HttpClient {
 
     let response: Response;
     try {
-      response = await fetch(`${baseUrl}${path}`, fetchInit);
+      response = await platformFetch()(`${baseUrl}${path}`, fetchInit);
     } catch (e) {
       const message = e instanceof Error ? e.message : "Network request failed";
       return err<ApiError>({ kind: "network", message });

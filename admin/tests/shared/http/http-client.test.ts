@@ -1,11 +1,46 @@
 import { HttpResponse, http } from "msw";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { server } from "@/tests/setup";
 import { createHttpClient } from "@/src/shared/http/http-client";
 
+const cloudflare = vi.hoisted(() => ({
+  binding: undefined as
+    | {
+        fetch: (
+          input: Parameters<typeof fetch>[0],
+          init?: Parameters<typeof fetch>[1],
+        ) => ReturnType<typeof fetch>;
+      }
+    | undefined,
+}));
+
+vi.mock("@opennextjs/cloudflare", () => ({
+  getCloudflareContext: () => {
+    if (!cloudflare.binding) throw new Error("No Cloudflare request context");
+    return { env: { EMERGENCY_API: cloudflare.binding } };
+  },
+}));
+
 const BASE_URL = "http://test-api.example.com";
 
+afterEach(() => {
+  cloudflare.binding = undefined;
+});
+
 describe("HttpClient", () => {
+  describe("Cloudflare service binding", () => {
+    it("uses EMERGENCY_API instead of a public Worker-to-Worker fetch", async () => {
+      const bindingFetch = vi.fn(async () => HttpResponse.json({ ok: true }));
+      cloudflare.binding = { fetch: bindingFetch };
+
+      const client = createHttpClient({ baseUrl: BASE_URL });
+      const result = await client.get<{ ok: boolean }>("/bound");
+
+      expect(bindingFetch).toHaveBeenCalledWith(`${BASE_URL}/bound`, expect.any(Object));
+      expect(result).toEqual({ ok: true, value: { ok: true } });
+    });
+  });
+
   describe("get — 200 ok", () => {
     it("returns ok result with parsed body", async () => {
       server.use(http.get(`${BASE_URL}/data`, () => HttpResponse.json({ id: 1, name: "test" })));

@@ -24,12 +24,25 @@ describe("isolated platform Worker names", () => {
     }
   });
 
-  it("staging workers.dev is on and URLs are not Colombia hosts", () => {
+  it("staging workers.dev is on and only the Colombia staging browser origin crosses the boundary", () => {
     const backend = read("backend/wrangler.jsonc");
     const admin = read("admin/wrangler.jsonc");
-    expect(backend).toMatch(/"name": "mallanet-platform-api-staging"[\s\S]*?"workers_dev": true/);
-    expect(admin).toMatch(/"name": "mallanet-platform-admin-staging"[\s\S]*?"workers_dev": true/);
-    expect(backend).not.toMatch(/terremotocolombia\.co/);
+    expect(backend).toMatch(
+      /"name": "mallanet-platform-api-staging"[\s\S]*?"workers_dev": true/,
+    );
+    expect(backend).toMatch(
+      /"CORS_ORIGINS": "[^"]*https:\/\/staging\.terremotocolombia\.co"/,
+    );
+    expect(admin).toMatch(
+      /"name": "mallanet-platform-admin-staging"[\s\S]*?"workers_dev": true/,
+    );
+    expect(admin).toMatch(
+      /"binding": "EMERGENCY_API"[\s\S]*?"service": "mallanet-platform-api-staging"/,
+    );
+    expect(backend).not.toMatch(
+      /"(?:APP_BASE_URL|ADMIN_BASE_URL)": "https:\/\/[^" ]*terremotocolombia\.co/,
+    );
+    expect(backend).not.toMatch(/"routes"\s*:/);
     expect(admin).not.toMatch(/terremotocolombia\.co/);
     expect(backend).toMatch(/ENABLE_STRIPE_DONATIONS": "false"/);
   });
