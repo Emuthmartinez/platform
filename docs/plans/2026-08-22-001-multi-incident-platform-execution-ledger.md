@@ -671,7 +671,7 @@ This is the current `is_super_admin` model, not organization memberships.
 |---|---|
 | Requirement | Colombia staging web uses the isolated platform API and the operator can reach platform admin |
 | Scope | staging only; no Colombia production, DNS, Venezuela, or public platform frontend Worker |
-| Status | live on isolated staging Workers; Colombia staging rollout pending |
+| Status | live on isolated staging Workers and Colombia staging SHA `769d457` |
 | Rollback | redeploy the preceding API/admin Worker versions and remove the Colombia staging API build override |
 | Confirm token | `colombia-staging-platform-api-bridge` |
 
@@ -690,10 +690,17 @@ This is the current `is_super_admin` model, not organization memberships.
   177 tests); the service-binding regression suite passed (19 tests).
 - Backend lint, typecheck, build, tenant/hostname/isolation checks, and the
   service-binding/CORS isolation regression passed.
+- Platform PR #10 merged to `main` as `27b489e`; Colombia PR #79 merged to
+  `staging` as `769d457`. Colombia deploy run `32731940379` passed all deploy
+  and domain-smoke gates.
+- Live Colombia CSP/HTML reference the isolated platform API and contain no
+  legacy Colombia staging API URL. The public route audit rendered without an
+  application-error page.
+- Durable job readback is green: fresh earthquake sync/fetch, zero recent dead
+  letters, and zero unresolved failed imports.
 
 **Not claimed:**
 
-- Colombia staging frontend rollout (tracked in the Colombia repository)
 - successful operator credential submission (requires action-time user
   confirmation in the retained Chrome session)
 - production readiness, Venezuela readiness, or an absolute absence of bugs
