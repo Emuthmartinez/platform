@@ -174,7 +174,9 @@ async function applyOneBatch(
       );
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);
-      throw new Error(`${table.name}: batch update failed: ${detail}`);
+      throw new Error(`${table.name}: batch update failed: ${detail}`, {
+        cause: err,
+      });
     }
     await client.query("COMMIT");
     return { rows: updated.rows, txid };
