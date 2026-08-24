@@ -75,12 +75,11 @@ U35 starts deterministic shadow; not a U21 gate
 ```
 
 **Next executable unit:** U34 (Upstash behind the provider-neutral cache
-port) then U10 scoped repositories. Operator bootstrap (superadmin +
-deployment catalog) is on `feat/platform-operator-bootstrap`. Isolated
-platform Workers still use non-Colombia names before
-`ENABLE_PLATFORM_DEPLOYS`. Do not merge Colombia `staging` to `main`. Do
-not apply on production Neon. Skip mixed-scope `audit_log` until its
-fail-closed classifier ships.
+port) then U10 scoped repositories. Operator bootstrap is live on Colombia
+staging and on isolated `mallanet-platform-*-staging` Workers. Do not merge
+Colombia `staging` to `main`. Do not apply on production Neon. Skip
+mixed-scope `audit_log` until its fail-closed classifier ships.
+Do not set `ENABLE_PLATFORM_DEPLOYS`.
 U19 imports from Colombia `origin/main` after Phase A lands there. Do not
 copy Colombia Doppler tokens onto the platform repo. Do not deploy the
 platform clone onto terremotocolombia.co Workers. Do not enable Queue v2
@@ -630,7 +629,7 @@ platform clone only through U19 after Phase A commits land on Colombia `main`.
 | Requirements | operator can manage hostnames and add superusers on staging |
 | KTDs | KTD7 (catalog writes); does **not** retire NULL-org / `is_system` (U30 stays parked) |
 | Depends on | U8 tighten, U9 hostname resolution |
-| Status | code on `feat/platform-operator-bootstrap` |
+| Status | live on isolated staging Workers + Neon |
 | Rollback | revert the staging PR; superadmin rows stay until an operator disables them |
 | Confirm token | `platform-operator-bootstrap` |
 
@@ -649,14 +648,22 @@ This is the current `is_super_admin` model, not organization memberships.
 - Colombia staging Neon: same operator created as an additional superadmin.
   `info@mallanet.org` stays. Production Neon was not written.
 
-- Isolated Workers on this clone: `mallanet-platform-*-staging` at
-  `*.e-muth-martinez.workers.dev`. Queues renamed. Isolation test greps
-  wrangler names.
+- Isolated Workers live (2026-08-24):
+  - API `https://mallanet-platform-api-staging.e-muth-martinez.workers.dev`
+    `/api/healthz` and `/api/readyz` 200
+  - Admin `https://mallanet-platform-admin-staging.e-muth-martinez.workers.dev`
+    `/api/health` 200
+  - Public frontend Worker not deployed (operator console is API + admin)
+- GitHub deploy workflows smoke isolated `workers.dev` URLs. They no longer
+  purge the Colombia zone. `ENABLE_PLATFORM_DEPLOYS` stays unset: Doppler
+  `mallanet-platform` has no Cloudflare tokens.
 
 **Not claimed:**
 
 - U30 global identities / independent org memberships
-- `ENABLE_PLATFORM_DEPLOYS` (GitHub still must not deploy this clone)
+- `ENABLE_PLATFORM_DEPLOYS`
+- Isolated public frontend Worker
+- Merge Colombia `staging` to `main`
 
 ## Blocker packets (open)
 
@@ -687,4 +694,5 @@ This is the current `is_super_admin` model, not organization memberships.
 - **Interim:** https://github.com/Emuthmartinez/platform exists and is isolated.
 - **Missing:** an org owner creates or transfers `mallanet/platform`.
 - **Do not** copy Colombia `DOPPLER_TOKEN` / Cloudflare tokens onto the clone.
-- **Do not** set `ENABLE_PLATFORM_DEPLOYS` until isolated Workers exist.
+- **Do not** set `ENABLE_PLATFORM_DEPLOYS`. Isolated staging Workers exist;
+  Doppler `mallanet-platform` still has no Cloudflare tokens.

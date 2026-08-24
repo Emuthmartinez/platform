@@ -1,11 +1,8 @@
 name: Deploy admin
 
-# PLATFORM ISOLATION (U6): this repository must not ship traffic to
-# admin.terremotocolombia.co. Jobs run only when ENABLE_PLATFORM_DEPLOYS
-# is the string true. Push to main never deploys from this clone.
-#
-# Despliega SOLO el panel admin (Worker terremotocolombia-admin,
-# admin.terremotocolombia.co).
+# PLATFORM ISOLATION: this repository must not ship traffic to Colombia.
+# Jobs run only when ENABLE_PLATFORM_DEPLOYS is the string true.
+# Isolated Worker: mallanet-platform-admin (staging: mallanet-platform-admin-staging).
 #
 # AUTOMATICO en push a main desde 2026-08-11 (decision del mantenedor; antes
 # era manual con confirmacion, como el backend). El filtro de rutas hace que
@@ -73,7 +70,7 @@ jobs:
         run: |
           set -euo pipefail
           for i in $(seq 1 10); do
-            code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 https://admin.terremotocolombia.co/api/health || echo 000)
+            code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 https://mallanet-platform-admin.e-muth-martinez.workers.dev/api/health || echo 000)
             echo "intento $i -> HTTP $code"
             [ "$code" = "200" ] && exit 0
             sleep 10

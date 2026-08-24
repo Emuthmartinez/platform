@@ -12,8 +12,8 @@ set -euo pipefail
 
 ENVIRONMENT="${1:-staging}"
 case "$ENVIRONMENT" in
-  staging) API="https://api-staging.terremotocolombia.co"; DOPPLER_CONFIG="stg" ;;
-  production) API="https://api.terremotocolombia.co"; DOPPLER_CONFIG="prd" ;;
+  staging) API="https://mallanet-platform-api-staging.e-muth-martinez.workers.dev"; DOPPLER_CONFIG="stg" ;;
+  production) API="https://mallanet-platform-api.e-muth-martinez.workers.dev"; DOPPLER_CONFIG="prd" ;;
   *) echo "uso: $0 [staging|production]"; exit 2 ;;
 esac
 
@@ -61,7 +61,7 @@ echo "INFO  publicación de necesidades — verificable solo hasta el borde (ENA
 #    activity and unresolved failed imports separately. A historical DLQ record
 #    stops alerting after 24h; an import remains red until an operator resolves it.
 if command -v doppler >/dev/null 2>&1; then
-  job_state=$(doppler run -p terremotocolombia-web -c "$DOPPLER_CONFIG" -- sh -c '
+  job_state=$(doppler run -p mallanet-platform -c "$DOPPLER_CONFIG" -- sh -c '
     node -e "
       const { Pool } = require(process.env.PWD + \"/backend/node_modules/pg\");
       (async () => {

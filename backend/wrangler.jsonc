@@ -146,6 +146,7 @@
     "staging": {
       "name": "mallanet-platform-api-staging",
       "workers_dev": true,
+      "preview_urls": false,
       "ratelimits": [
         {
           "name": "EDGE_RATE_LIMITER",

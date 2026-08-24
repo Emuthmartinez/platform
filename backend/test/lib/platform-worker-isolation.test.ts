@@ -33,4 +33,20 @@ describe("isolated platform Worker names", () => {
     expect(admin).not.toMatch(/terremotocolombia\.co/);
     expect(backend).toMatch(/ENABLE_STRIPE_DONATIONS": "false"/);
   });
+
+  it("GitHub deploy workflows and probes do not target Colombia hosts", () => {
+    const files = [
+      ".github/workflows/deploy-staging.yml",
+      ".github/workflows/deploy-backend.yml",
+      ".github/workflows/deploy-admin.yml",
+      ".github/workflows/deploy-frontend.yml",
+      "scripts/verify-jobs.sh",
+      "scripts/verify-turnstile.sh",
+    ];
+    for (const rel of files) {
+      const text = read(rel);
+      expect(text, rel).not.toMatch(/terremotocolombia/);
+      expect(text, rel).not.toMatch(/494895363b65d50699864543d005238a/);
+    }
+  });
 });

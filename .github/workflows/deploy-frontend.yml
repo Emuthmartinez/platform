@@ -1,14 +1,13 @@
 name: Deploy frontend
 
-# PLATFORM ISOLATION (U6): this repository must not ship traffic to
-# terremotocolombia.co. Jobs run only when the repository variable
-# ENABLE_PLATFORM_DEPLOYS is the string true, after isolated staging
-# Workers exist. Push to main never deploys from this clone.
+# PLATFORM ISOLATION: this repository must not ship traffic to Colombia.
+# Jobs run only when ENABLE_PLATFORM_DEPLOYS is the string true.
+# Isolated Worker: mallanet-platform-web (staging: mallanet-platform-web-staging).
 #
 # Despliega SOLO el frontend (Cloudflare Workers, via @opennextjs/cloudflare).
 #
 # El backend NO se toca aqui. Vive en su propio Worker
-# (terremotocolombia-api) y en su propio workflow, que ademas es MANUAL.
+# (mallanet-platform-api) y en su propio workflow, que ademas es MANUAL.
 # Trabajar en frontend y hacer push a main nunca redespliega la API.
 #
 # El disparo va con lista de rutas: si un commit solo toca backend/ o docs/,
@@ -85,21 +84,11 @@ jobs:
       # los navegadores — visto en vivo el 2026-08-11 (v8 desplegado, el borde
       # sirviendo v7 con HIT). El SW controla el cache de TODOS los clientes:
       # purgarlo es parte del deploy, no un extra.
-      - name: Purgar service worker del borde
-        env:
-          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
-        run: |
-          doppler run --command '
-            curl -sf -X POST "https://api.cloudflare.com/client/v4/zones/494895363b65d50699864543d005238a/purge_cache" \
-              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN_COLOMBIA_SCOPED" \
-              -H "Content-Type: application/json" \
-              --data "{\"files\":[\"https://terremotocolombia.co/sw.js\",\"https://www.terremotocolombia.co/sw.js\"]}"'
-
       - name: Comprobar que el sitio responde
         run: |
           set -euo pipefail
           for i in $(seq 1 10); do
-            code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 https://terremotocolombia.co/ || echo 000)
+            code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 https://mallanet-platform-web.e-muth-martinez.workers.dev/ || echo 000)
             echo "intento $i -> HTTP $code"
             [ "$code" = "200" ] && exit 0
             sleep 10

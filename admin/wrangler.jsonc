@@ -31,6 +31,7 @@
     "staging": {
       "name": "mallanet-platform-admin-staging",
       "workers_dev": true,
+      "preview_urls": false,
       "compatibility_date": "2026-08-01",
       "compatibility_flags": ["nodejs_compat"],
       "assets": {
