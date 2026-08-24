@@ -94,6 +94,21 @@ describe("useAdminSession", () => {
     expect(result.current.can("user:read")).toBe(false);
   });
 
+  it("el comodín * no concede deployment:manage ni mirror:manage", async () => {
+    server.use(
+      http.get("/api/auth/me", () =>
+        HttpResponse.json({ ...me, capabilities: ["*"] }),
+      ),
+    );
+    const qc = new QueryClient();
+    const { result } = renderHook(() => useAdminSession(), { wrapper: wrapperWith(qc) });
+
+    await waitFor(() => expect(result.current.user).not.toBeNull());
+    expect(result.current.can("user:read")).toBe(true);
+    expect(result.current.can("deployment:manage")).toBe(false);
+    expect(result.current.can("mirror:manage")).toBe(false);
+  });
+
   it("login() propaga el mensaje real del BFF en un 502", async () => {
     server.use(
       http.get("/api/auth/me", () => HttpResponse.json({ error: "Unauthorized" }, { status: 401 })),

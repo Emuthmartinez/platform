@@ -411,8 +411,10 @@ surface. Turnstile and rate limiting remain the real protection.
   direct PII, no secrets, no audit or federation data). It exposes raw,
   read-only SQL over TCP with TLS, so a sibling deployment of the same
   template can read aggregated data. The backend issues this access: a
-  **super admin** (capability `mirror:manage`, gated by
-  `users.is_super_admin`) creates one Postgres role per consumer. If the
+  **super admin** (capabilities `mirror:manage` and `deployment:manage`,
+  gated by `users.is_super_admin`) creates one Postgres role per consumer.
+  The same flag gates the hostname catalog at `/api/public/deployments`.
+  If the
   hub goes down, the primary database is not affected
   (`max_slot_wal_keep_size` caps the retained WAL). This replica does not
   depend on any cloud-provider-specific firewall automation, which stays

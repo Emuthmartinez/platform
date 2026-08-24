@@ -78,3 +78,16 @@ the same direct endpoint. Verify with `verify-tighten.sql`. Every
 nullable.
 
 Colombia production Neon is out of scope for this slice.
+
+## Operator bootstrap (superadmin)
+
+Confirm token: `platform-operator-bootstrap`. Neon **direct** only. Refuses
+Colombia production (`nameless-dew`). Does not print the password.
+
+```bash
+doppler run --no-check-version --command 'bash scripts/ops-ensure-superadmin-direct.sh DATABASE_URL --confirm platform-operator-bootstrap'
+```
+
+Email and password come from `ENSURE_SUPERADMIN_*` or, if those are empty,
+`SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD`.
+

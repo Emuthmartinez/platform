@@ -102,6 +102,13 @@ export const CROSS_CUTTING: { key: string; category: string; description: string
   // se exige incluso al admin semilla, que debe tener además el flag de super
   // admin (users.is_super_admin). Ver MIRROR_MANAGE + userHasCapability.
   { key: "mirror:manage", category: "auth", description: "Emitir/revocar acceso a la réplica pública (SQL hub)" },
+  // Hostname → organization/incident catalog (KTD7). Same superadmin cut as
+  // mirror:manage: never granted through a role. See DEPLOYMENT_MANAGE.
+  {
+    key: "deployment:manage",
+    category: "auth",
+    description: "Crear y editar deployments (hostname → organización e incidente)",
+  },
   // Family Search (U9) — capa de identidad sobre missing_persons/hospital_patients/
   // unidentified_persons. Tres claves, no CRUD estándar (la unidad no es un
   // modelo con create/edit/delete, es un flujo de revisión con tres verbos
@@ -128,6 +135,19 @@ export const CROSS_CUTTING: { key: string; category: string; description: string
 
 /** Capacidad que gobierna el acceso a la réplica pública. Gateada a super admin. */
 export const MIRROR_MANAGE = "mirror:manage";
+
+/** Hostname catalog (KTD7). Gateada a super admin, igual que mirror:manage. */
+export const DEPLOYMENT_MANAGE = "deployment:manage";
+
+/** Capabilities that require users.is_super_admin even for the seed admin role. */
+export const SUPERADMIN_ONLY_CAPABILITIES = [
+  MIRROR_MANAGE,
+  DEPLOYMENT_MANAGE,
+] as const;
+
+export function isSuperAdminOnlyCapability(key: string): boolean {
+  return (SUPERADMIN_ONLY_CAPABILITIES as readonly string[]).includes(key);
+}
 
 export interface CapabilityDef {
   key: string;

@@ -85,6 +85,7 @@ API hostname, not from the panel cookie.
 | `/api/public/capabilities` | `capabilities.router.ts` | Global catalog |
 | `/api/public/api-keys` | `api-keys.router.ts` | `requireTenantScope` |
 | `/api/public/hub-credentials` | `hub-credentials.router.ts` | `requireTenantScope` |
+| `/api/public/deployments` | `deployments.router.ts` | Global hostname catalog. Superadmin-only (`deployment:manage`) |
 | `/api/public/psychology` | `psychology.router.ts` | Read / access gate |
 | `/api/public/volunteers/:id/message` | `volunteers-actions.router.ts` | Side effect, no new tenant row |
 | `/api/public/volunteer-tasks` actions | `volunteer-tasks-actions.router.ts` | `requireTenantScope` |

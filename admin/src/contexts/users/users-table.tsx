@@ -44,6 +44,7 @@ export function UsersTable() {
   const [filter, setFilter] = useState<"all" | UserStatus>("all");
   const canEdit = can("user:edit");
   const canDelete = can("user:delete");
+  const canGrantSuperadmin = can("deployment:manage");
 
   const roleName = useMemo(() => {
     const m = new Map<string, string>();
@@ -84,6 +85,16 @@ export function UsersTable() {
     }
   }
 
+  async function setSuperadmin(u: User, isSuperAdmin: boolean) {
+    const label = isSuperAdmin ? `¿Hacer superadmin a ${u.email}?` : `¿Quitar superadmin a ${u.email}?`;
+    if (!confirm(label)) return;
+    try {
+      await updateUser.mutateAsync({ id: u.id, input: { isSuperAdmin } });
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "No se pudo cambiar superadmin.");
+    }
+  }
+
   return (
     <div className="mt-4">
       <div className="mb-3 flex gap-2">
@@ -109,6 +120,7 @@ export function UsersTable() {
               <th className="px-3 py-2 font-semibold">Nombre</th>
               <th className="px-3 py-2 font-semibold">Rol</th>
               <th className="px-3 py-2 font-semibold">Estado</th>
+              {canGrantSuperadmin && <th className="px-3 py-2 font-semibold">Superadmin</th>}
               {(canEdit || canDelete) && <th className="px-3 py-2 font-semibold">Acciones</th>}
             </tr>
           </thead>
@@ -142,6 +154,25 @@ export function UsersTable() {
                   <td className="px-3 py-2">
                     <StatusBadge status={u.status} />
                   </td>
+                  {canGrantSuperadmin && (
+                    <td className="px-3 py-2">
+                      {u.isSuperAdmin ? (
+                        <span className="text-xs font-medium text-emerald-800">Sí</span>
+                      ) : (
+                        <span className="text-xs text-gray-500">No</span>
+                      )}
+                      {!isSelf && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          disabled={updateUser.isPending}
+                          onClick={() => setSuperadmin(u, !u.isSuperAdmin)}
+                        >
+                          {u.isSuperAdmin ? "Quitar" : "Conceder"}
+                        </Button>
+                      )}
+                    </td>
+                  )}
                   {(canEdit || canDelete) && (
                     <td className="px-3 py-2">
                       {isSelf ? (
@@ -178,7 +209,7 @@ export function UsersTable() {
             })}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={canEdit || canDelete ? 5 : 4} className="px-3 py-6 text-center text-gray-500">
+                <td colSpan={4 + (canGrantSuperadmin ? 1 : 0) + (canEdit || canDelete ? 1 : 0)} className="px-3 py-6 text-center text-gray-500">
                   Sin usuarios en este filtro.
                 </td>
               </tr>

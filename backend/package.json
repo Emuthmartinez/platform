@@ -24,7 +24,8 @@
     "check:migration-journal": "tsx worker/check-migration-journal.ts",
     "observe:db": "tsx worker/observe-db.ts",
     "ops:backfill": "tsx worker/ops-backfill.ts",
-    "ops:tighten": "tsx worker/ops-tighten.ts"
+    "ops:tighten": "tsx worker/ops-tighten.ts",
+    "ops:ensure-superadmin": "tsx worker/ops-ensure-superadmin.ts"
   },
   "dependencies": {
     "@asteasolutions/zod-to-openapi": "^7.3.4",

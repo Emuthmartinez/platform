@@ -46,6 +46,7 @@ import { recordSignalsRouter } from "@/public-api/routers/record-signals.router"
 import { psychologyRouter } from "@/public-api/routers/psychology.router";
 import { volunteersActionsRouter } from "@/public-api/routers/volunteers-actions.router";
 import { volunteerTasksActionsRouter } from "@/public-api/routers/volunteer-tasks-actions.router";
+import { deploymentsRouter } from "@/public-api/routers/deployments.router";
 
 /**
  * Registro path → CONFIG del recurso. Fuente de verdad ÚNICA: de aquí salen
@@ -117,6 +118,7 @@ export function mountPublicApi(app: Express): void {
   app.use("/api/public/capabilities", capabilitiesRouter); // role:read (catálogo p/ UI)
   app.use("/api/public/api-keys", apiKeysRouter); // apikey:manage (self-service)
   app.use("/api/public/hub-credentials", hubCredentialsRouter); // mirror:manage (super admin)
+  app.use("/api/public/deployments", deploymentsRouter); // deployment:manage (super admin)
   // Portal de psicólogos (/psicologia): gateado por psychology:access.
   app.use("/api/public/psychology", psychologyRouter);
   // Acciones de dominio sobre voluntarios (enviar mensaje): volunteer:edit.

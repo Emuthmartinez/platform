@@ -10,7 +10,7 @@
 import { randomUUID } from "crypto";
 import { asc, eq, inArray } from "drizzle-orm";
 import { getDb, schema } from "@/db";
-import { isKnownCapability } from "@/auth/capabilities";
+import { isKnownCapability, isSuperAdminOnlyCapability } from "@/auth/capabilities";
 import { badRequest, forbidden } from "@/lib/errors";
 
 const { roles, roleCapabilities } = schema;
@@ -43,6 +43,10 @@ function assertKnownCapabilities(caps: string[]): void {
   const unknown = caps.filter((c) => !isKnownCapability(c));
   if (unknown.length > 0) {
     throw badRequest(`Capacidades desconocidas: ${unknown.join(", ")}`);
+  }
+  const blocked = caps.filter((c) => isSuperAdminOnlyCapability(c));
+  if (blocked.length > 0) {
+    throw badRequest(`Capacidades solo de superadmin: ${blocked.join(", ")}`);
   }
 }
 

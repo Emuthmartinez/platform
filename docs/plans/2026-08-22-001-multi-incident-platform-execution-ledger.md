@@ -4,7 +4,7 @@ date: 2026-08-22
 bootstrap_sha: 83b7c1669fda091f092edcb3f470a1e81f5669ba
 plan_review_sha: 89089da
 cache_review_sha: d106977
-status: phase-b-u8-tighten-applied-pending-merge
+status: phase-b-operator-bootstrap
 supersedes: docs/plans/2026-08-21-001-multi-incident-platform-execution-ledger.md
 ---
 
@@ -30,7 +30,7 @@ status. Complete means acceptance evidence, not the existence of files.
 | Untracked on user checkout | `.agents/skills/disaster-*`, `.agents/skills/geo/**`, `.agents/skills/neon*` — preserve, do not absorb |
 | Plans on origin/main | absent before this unit; copied into the worktree in Phase 0 |
 | Do not absorb | `8f12eaa` Access-doc edits and pptx |
-| origin/staging | `22340434` Merge PR #72 (U18 dual-write). Recorded 2026-08-23 |
+| origin/staging | `410ed8f` Merge PR #76 (U8 tighten). Recorded 2026-08-24 |
 | Local `main` | stale (`3dacec2`, 242 behind). Ignore. |
 | Plan original review SHA | `89089da` (ancestor of main) |
 | Cache addendum SHA | `d106977` (ancestor of main) |
@@ -74,12 +74,13 @@ U23–U33 PARKED until U21+U22 and a named second-incident driver
 U35 starts deterministic shadow; not a U21 gate
 ```
 
-**Next executable unit:** merge U8 tighten to Colombia `staging` (schema
-already applied), port the same commits to isolated `platform` `main`,
-then U34 (Upstash behind the provider-neutral cache port) and U10 scoped
-repositories. Do not merge Colombia `staging` to `main`. Do not apply on
-production Neon. Skip mixed-scope `audit_log` until its fail-closed
-classifier ships.
+**Next executable unit:** U34 (Upstash behind the provider-neutral cache
+port) then U10 scoped repositories. Operator bootstrap (superadmin +
+deployment catalog) is on `feat/platform-operator-bootstrap`. Isolated
+platform Workers still use non-Colombia names before
+`ENABLE_PLATFORM_DEPLOYS`. Do not merge Colombia `staging` to `main`. Do
+not apply on production Neon. Skip mixed-scope `audit_log` until its
+fail-closed classifier ships.
 U19 imports from Colombia `origin/main` after Phase A lands there. Do not
 copy Colombia Doppler tokens onto the platform repo. Do not deploy the
 platform clone onto terremotocolombia.co Workers. Do not enable Queue v2
@@ -579,9 +580,9 @@ platform clone only through U19 after Phase A commits land on Colombia `main`.
 | Requirements | R6, R7 |
 | KTDs | KTD6 |
 | Depends on | U8 backfill |
-| Status | applied on Colombia staging Neon and isolated platform Neon; code PR next |
+| Status | complete on Colombia staging and isolated platform Neon |
 | Rollback | columns stay NOT NULL. Revert Worker/code. Do not drop NOT NULL in the compatibility window. |
-| PR/commit | `feat/platform-u8-tighten` (this branch). Sub-plan: `docs/plans/2026-08-24-001-impl-u8-tighten.md` |
+| PR/commit | Colombia [PR #76](https://github.com/mallanet/Terremotocolombia/pull/76) merged to `staging` as `410ed8f`; platform [PR #8](https://github.com/Emuthmartinez/platform/pull/8) merged to `main` as `1011abf`. Sub-plan: `docs/plans/2026-08-24-001-impl-u8-tighten.md` |
 
 **Evidence (2026-08-24, local Postgres `localhost:5432/app`):**
 
@@ -608,6 +609,8 @@ platform clone only through U19 after Phase A commits land on Colombia `main`.
   `indisvalid=true`.
 - Then `scripts/migrate-direct.sh` applied `0024_tenant_tighten.sql`.
 - `check:platform-schema` OK: NOT NULL + validated FKs + tenant indexes.
+- Staging Workers serve SHA `410ed8f` (`/api/healthz`, `/api/readyz`,
+  admin `/api/health`). Deploy staging run after merge of #76 succeeded.
 
 **Evidence (2026-08-24, isolated Neon `hidden-cell-49890973` / `br-sparkling-unit-ay5figxy`):**
 
@@ -619,6 +622,39 @@ platform clone only through U19 after Phase A commits land on Colombia `main`.
 - `audit_log` mixed-scope classifier
 - Apply on Colombia production Neon
 - Merge Colombia `staging` to `main`
+
+### Operator bootstrap — superadmin + deployment catalog (not U30)
+
+| Field | Value |
+|---|---|
+| Requirements | operator can manage hostnames and add superusers on staging |
+| KTDs | KTD7 (catalog writes); does **not** retire NULL-org / `is_system` (U30 stays parked) |
+| Depends on | U8 tighten, U9 hostname resolution |
+| Status | code on `feat/platform-operator-bootstrap` |
+| Rollback | revert the staging PR; superadmin rows stay until an operator disables them |
+| Confirm token | `platform-operator-bootstrap` |
+
+This is the current `is_super_admin` model, not organization memberships.
+`deployment:manage` uses the same superadmin cut as `mirror:manage`.
+
+**Evidence (2026-08-24, local + staging Neon):**
+
+- Backend: `test/operator-superadmin.test.ts` + catalog integrity. Lint and
+  typecheck clean.
+- Admin: `/deployments` + users superadmin toggle. `use-admin-session`
+  wildcard does not grant `deployment:manage`.
+- Isolated Neon (`mallanet-platform`): operator created with confirm
+  `platform-operator-bootstrap`. Password is Doppler
+  `mallanet-platform`/`stg` `SEED_ADMIN_PASSWORD` (not in git).
+- Colombia staging Neon: same operator created as an additional superadmin.
+  `info@mallanet.org` stays. Production Neon was not written.
+
+**Not claimed:**
+
+- U30 global identities / independent org memberships
+- Isolated Cloudflare Workers (`mallanet-platform-*`) until wrangler names
+  on `Emuthmartinez/platform` no longer say `terremotocolombia-*`
+- `ENABLE_PLATFORM_DEPLOYS`
 
 ## Blocker packets (open)
 

@@ -94,10 +94,12 @@ export function useAdminSession(): AdminSessionValue {
 
   // Capacidades FUERA del comodín "*": aunque un admin tenga "*", estas exigen
   // estar presentes EXPLÍCITAMENTE (las concede el backend solo a super admins).
-  // Espeja el corte de auth/resolve.ts del backend. Ver RFC 0006 (mirror:manage).
+  // Espeja SUPERADMIN_ONLY_CAPABILITIES en backend/src/auth/capabilities.ts.
   const can = useCallback(
     (capability: string): boolean => {
-      if (capability === "mirror:manage") return capabilities.includes(capability);
+      if (capability === "mirror:manage" || capability === "deployment:manage") {
+        return capabilities.includes(capability);
+      }
       return capabilities.includes("*") || capabilities.includes(capability);
     },
     [capabilities],

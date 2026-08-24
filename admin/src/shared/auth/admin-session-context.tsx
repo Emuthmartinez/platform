@@ -8,6 +8,7 @@ export interface SessionUser {
   roleId: string | null;
   orgId: string | null;
   isAdmin: boolean;
+  isSuperAdmin?: boolean;
 }
 
 export interface AdminSessionValue {

@@ -18,7 +18,10 @@
  */
 import { and, eq, isNull, or, gt, inArray } from "drizzle-orm";
 import { getDb, schema } from "@/db";
-import { MIRROR_MANAGE } from "@/auth/capabilities";
+import {
+  isSuperAdminOnlyCapability,
+  SUPERADMIN_ONLY_CAPABILITIES,
+} from "@/auth/capabilities";
 
 export interface AuthUser {
   id: string;
@@ -94,11 +97,10 @@ export async function userHasCapability(
   // (no un alias total). Va ANTES del short-circuit de admin a propósito.
   if (user.apiKeyScopes && !user.apiKeyScopes.includes(capability)) return false;
 
-  // 0.5) Corte de super admin: `mirror:manage` (gestionar la réplica pública) es
-  // la capacidad más sensible. Se exige el flag is_super_admin INCLUSO al admin
-  // semilla — por eso va ANTES de su short-circuit. Así un admin normal no puede
-  // abrir el puerto público ni crear credenciales de DB.
-  if (capability === MIRROR_MANAGE) return user.isSuperAdmin === true;
+  // 0.5) Superadmin-only capabilities (replica hub, deployment catalog).
+  // Require is_super_admin even for the seed admin role, before its
+  // short-circuit. A normal admin with "*" must not pass these.
+  if (isSuperAdminOnlyCapability(capability)) return user.isSuperAdmin === true;
 
   // 1) Admin semilla: todo (lo que el techo de scope no haya cortado ya).
   if (user.isSystemAdmin) return true;
@@ -172,11 +174,12 @@ async function resolveFromDb(user: AuthUser, capability: string): Promise<boolea
  * Para el endpoint /me y la UI. El admin semilla devuelve "*" como marcador.
  */
 export async function effectiveCapabilities(user: AuthUser): Promise<string[]> {
-  // El admin semilla devuelve "*" (comodín). PERO `mirror:manage` está fuera del
-  // comodín: solo aparece si is_super_admin. Así la UI gatea la pestaña de la
-  // réplica por la presencia EXPLÍCITA de mirror:manage, no por "*" — un admin
-  // normal con "*" NO la verá. El gate real igual está en userHasCapability.
-  if (user.isSystemAdmin) return user.isSuperAdmin ? ["*", MIRROR_MANAGE] : ["*"];
+  // Seed admin returns "*". Superadmin-only keys stay outside that wildcard
+  // and appear only when is_super_admin is set. The UI gates those tabs by
+  // explicit presence. The real gate is still userHasCapability.
+  if (user.isSystemAdmin) {
+    return user.isSuperAdmin ? ["*", ...SUPERADMIN_ONLY_CAPABILITIES] : ["*"];
+  }
   const db = getDb();
   const fromRole = user.roleId
     ? await db

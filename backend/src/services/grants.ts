@@ -11,7 +11,7 @@
 import { randomUUID } from "crypto";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { getDb, schema } from "@/db";
-import { isKnownCapability } from "@/auth/capabilities";
+import { isKnownCapability, isSuperAdminOnlyCapability } from "@/auth/capabilities";
 import { badRequest } from "@/lib/errors";
 
 const { permissionGrants, users } = schema;
@@ -64,6 +64,9 @@ export interface CreateGrantInput {
 export async function grantToUser(input: CreateGrantInput, grantedBy: string): Promise<GrantDTO> {
   if (!isKnownCapability(input.capabilityKey)) {
     throw badRequest(`Capacidad desconocida: ${input.capabilityKey}`);
+  }
+  if (isSuperAdminOnlyCapability(input.capabilityKey)) {
+    throw badRequest("Esa capacidad solo se concede con el flag de superadmin.");
   }
   const db = getDb();
   const [user] = await db.select({ id: users.id }).from(users).where(eq(users.id, input.userId)).limit(1);

@@ -12,6 +12,7 @@ export interface User {
   name: string;
   roleId: string | null;
   status: UserStatus;
+  isSuperAdmin: boolean;
   createdAt: number;
   lastLoginAt: number | null;
 }
@@ -20,6 +21,7 @@ export interface UpdateUserInput {
   roleId?: string | null;
   status?: "active" | "disabled";
   name?: string;
+  isSuperAdmin?: boolean;
 }
 
 const USERS_KEY = scopedQueryKey("admin", "users");

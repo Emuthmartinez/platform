@@ -17,7 +17,14 @@ import { BFF_CACHE_HEADERS } from "../../_shared/bff-cache";
 export const dynamic = "force-dynamic";
 
 export type MeResponse = {
-  user: { id: string; email: string; roleId: string | null; orgId: string | null; isAdmin: boolean };
+  user: {
+    id: string;
+    email: string;
+    roleId: string | null;
+    orgId: string | null;
+    isAdmin: boolean;
+    isSuperAdmin?: boolean;
+  };
   capabilities: string[];
 };
 
