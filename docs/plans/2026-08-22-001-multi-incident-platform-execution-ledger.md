@@ -665,6 +665,39 @@ This is the current `is_super_admin` model, not organization memberships.
 - Isolated public frontend Worker
 - Merge Colombia `staging` to `main`
 
+### Colombia staging API bridge — platform admin reachability
+
+| Field | Value |
+|---|---|
+| Requirement | Colombia staging web uses the isolated platform API and the operator can reach platform admin |
+| Scope | staging only; no Colombia production, DNS, Venezuela, or public platform frontend Worker |
+| Status | live on isolated staging Workers; Colombia staging rollout pending |
+| Rollback | redeploy the preceding API/admin Worker versions and remove the Colombia staging API build override |
+| Confirm token | `colombia-staging-platform-api-bridge` |
+
+**Evidence (2026-08-24, isolated platform staging):**
+
+- Root cause: the admin Worker's public Worker-to-Worker fetch returned 502
+  without invoking the API Worker. `EMERGENCY_API` now uses a Cloudflare
+  service binding; local and test runtimes retain the public-fetch fallback.
+- Platform API version `9413e63b-9df5-4e81-b25f-86b6d060a629` and admin
+  version `35562f94-4065-4181-87d6-812fe123330e` are live.
+- Invalid credentials through the admin BFF return the API's expected 401
+  response instead of 502. API health/ready and admin health return 200.
+- The API admits `https://staging.terremotocolombia.co` as a credentialed
+  staging origin. Production origins and deployment routing are unchanged.
+- Admin lint, typecheck, build, OpenNext build, and tests passed (34 files,
+  177 tests); the service-binding regression suite passed (19 tests).
+- Backend lint, typecheck, build, tenant/hostname/isolation checks, and the
+  service-binding/CORS isolation regression passed.
+
+**Not claimed:**
+
+- Colombia staging frontend rollout (tracked in the Colombia repository)
+- successful operator credential submission (requires action-time user
+  confirmation in the retained Chrome session)
+- production readiness, Venezuela readiness, or an absolute absence of bugs
+
 ## Blocker packets (open)
 
 ### B0. Production promotion dry-run (U0 verification)

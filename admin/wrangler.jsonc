@@ -10,6 +10,12 @@
     "directory": ".open-next/assets",
     "binding": "ASSETS",
   },
+  "services": [
+    {
+      "binding": "EMERGENCY_API",
+      "service": "mallanet-platform-api",
+    },
+  ],
   // Isolated clone: no Colombia custom domain. Do not add `routes`.
   //
   // NO declarar `routes` aquí: con `routes`, wrangler llama además a
@@ -38,6 +44,12 @@
         "directory": ".open-next/assets",
         "binding": "ASSETS",
       },
+      "services": [
+        {
+          "binding": "EMERGENCY_API",
+          "service": "mallanet-platform-api-staging",
+        },
+      ],
       "observability": {
         "enabled": true,
         "logs": { "enabled": true, "head_sampling_rate": 1, "invocation_logs": false },
