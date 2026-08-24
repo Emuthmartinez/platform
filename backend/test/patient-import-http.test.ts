@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import "./helpers";
 import request from "supertest";
-import { ensureSeed, makeUserWithCaps } from "./helpers";
+import { ensureSeed, makeUserWithCaps, testTenantOwnership } from "./helpers";
 
 let app: import("express").Express;
 const demoRows = [{ name: "Demo Anon", hospital: "Hospital Demo" }];
@@ -301,7 +301,7 @@ describe("patient-imports — redacción HTTP", () => {
 		const name = `Hospital Redaccion ${id.slice(0, 8)}`;
 		await getDb()
 			.insert(schema.hospitals)
-			.values({ id, name, createdAt: Date.now() });
+			.values({ id, name, createdAt: Date.now(), ...testTenantOwnership() });
 		return { id, name };
 	}
 

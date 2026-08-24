@@ -169,6 +169,13 @@
       "when": 1787452700000,
       "tag": "0023_staging_deployments",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1787491200000,
+      "tag": "0024_tenant_tighten",
+      "breakpoints": true
     }
   ]
 }

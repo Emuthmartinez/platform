@@ -9,7 +9,7 @@
 import { randomUUID } from "crypto";
 import { eq, sql } from "drizzle-orm";
 import { beforeAll, describe, expect, it } from "vitest";
-import "./helpers";
+import { testTenantOwnership } from "./helpers";
 import { colombiaTenantScope } from "@/lib/colombia-tenant";
 
 let db: typeof import("@/db");
@@ -33,7 +33,8 @@ async function seedFailed(input: {
     errorCode: "42703",
     createdAt: input.createdAt,
     replayedAt: input.replayedAt ?? null,
-  });
+      ...testTenantOwnership(),
+    });
   return id;
 }
 

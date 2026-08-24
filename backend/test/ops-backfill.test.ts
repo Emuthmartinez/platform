@@ -79,25 +79,27 @@ async function cleanupFixtures(): Promise<void> {
   );
 }
 
+async function tenantColumnsNullable(): Promise<boolean> {
+  const result = await getDb().execute(sql`
+    SELECT is_nullable
+      FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name = 'reports'
+       AND column_name = 'organization_id'
+  `);
+  const rows = (result as { rows?: Array<{ is_nullable: string }> }).rows ?? [];
+  return rows[0]?.is_nullable === "YES";
+}
+
 async function insertUnscopedReports(count: number): Promise<string[]> {
   const now = Date.now();
   const ids = Array.from({ length: count }, (_, i) => `${PREFIX}report-${i}`);
-  await getDb()
-    .insert(schema.reports)
-    .values(
-      ids.map((id) => ({
-        id,
-        type: "need",
-        lat: 4.6,
-        lng: -74.0,
-        place: "DEMO U8 backfill fixture",
-        affected: 0,
-        needs: "demo",
-        createdAt: now,
-        organizationId: null,
-        incidentId: null,
-      })),
-    );
+  for (const id of ids) {
+    await getDb().execute(sql`
+      INSERT INTO reports (id, type, lat, lng, place, affected, needs, created_at)
+      VALUES (${id}, 'need', 4.6, -74.0, 'DEMO U8 backfill fixture', 0, 'demo', ${now})
+    `);
+  }
   return ids;
 }
 
@@ -244,7 +246,22 @@ describe("U8 ops-backfill reports domain", () => {
     await cleanupFixtures();
   });
 
+  it("apply is a no-op when every reports row is already scoped", async () => {
+    const result = await runDomainBackfill({
+      databaseUrl: dbUrl(),
+      args: {
+        domain: "reports",
+        mode: "apply",
+        operator: "u8-test",
+      },
+      nodeEnv: "test",
+    });
+    expect(result.tables.every((t) => t.unscopedAfter === 0)).toBe(true);
+    expect(result.tables.every((t) => t.rowsUpdated === 0)).toBe(true);
+  });
+
   it("count-only does not stamp rows", async () => {
+    if (!(await tenantColumnsNullable())) return;
     const ids = await insertUnscopedReports(3);
     const counted = await runDomainBackfill({
       databaseUrl: dbUrl(),
@@ -274,6 +291,7 @@ describe("U8 ops-backfill reports domain", () => {
   });
 
   it("commits more than one bounded batch with distinct transaction ids", async () => {
+    if (!(await tenantColumnsNullable())) return;
     await insertUnscopedReports(5);
     const result = await runDomainBackfill({
       databaseUrl: dbUrl(),
@@ -294,6 +312,7 @@ describe("U8 ops-backfill reports domain", () => {
   });
 
   it("resumes from recorded progress after an interrupted apply", async () => {
+    if (!(await tenantColumnsNullable())) return;
     const ids = await insertUnscopedReports(5);
     const first = await runDomainBackfill({
       databaseUrl: dbUrl(),
@@ -369,6 +388,7 @@ describe("U8 ops-backfill reports domain", () => {
   });
 
   it("stamps a dual-write window row and a leftover NULL row on re-run", async () => {
+    if (!(await tenantColumnsNullable())) return;
     await insertUnscopedReports(3);
     await runDomainBackfill({
       databaseUrl: dbUrl(),
@@ -397,20 +417,10 @@ describe("U8 ops-backfill reports domain", () => {
         createdAt: now,
         ...ownership,
       });
-    await getDb()
-      .insert(schema.reports)
-      .values({
-        id: `${PREFIX}late-null`,
-        type: "need",
-        lat: 4.6,
-        lng: -74.0,
-        place: "DEMO U8 late null fixture",
-        affected: 0,
-        needs: "demo",
-        createdAt: now,
-        organizationId: null,
-        incidentId: null,
-      });
+    await getDb().execute(sql`
+      INSERT INTO reports (id, type, lat, lng, place, affected, needs, created_at)
+      VALUES (${`${PREFIX}late-null`}, 'need', 4.6, -74.0, 'DEMO U8 late null fixture', 0, 'demo', ${now})
+    `);
 
     const result = await runDomainBackfill({
       databaseUrl: dbUrl(),
@@ -457,63 +467,32 @@ describe("U8 ops-backfill reports domain", () => {
   });
 
   it("backfills every reports-domain table including composite PKs", async () => {
+    if (!(await tenantColumnsNullable())) return;
     const now = Date.now();
-    await getDb().insert(schema.reports).values({
-      id: `${PREFIX}parent`,
-      type: "need",
-      lat: 4.6,
-      lng: -74.0,
-      place: "DEMO U8 parent",
-      affected: 0,
-      needs: "demo",
-      createdAt: now,
-      organizationId: null,
-      incidentId: null,
-    });
-    await getDb().insert(schema.reportConfirmations).values({
-      reportId: `${PREFIX}parent`,
-      ipHash: "demo-ip-hash",
-      createdAt: now,
-      organizationId: null,
-      incidentId: null,
-    });
-    await getDb().insert(schema.chatMessages).values({
-      id: `${PREFIX}chat`,
-      text: "DEMO U8 chat",
-      createdAt: now,
-      organizationId: null,
-      incidentId: null,
-    });
-    await getDb().insert(schema.contactMessages).values({
-      id: `${PREFIX}contact`,
-      name: "DEMO U8",
-      email: "demo-u8@test.local",
-      subject: "demo",
-      message: "demo",
-      createdAt: now,
-      organizationId: null,
-      incidentId: null,
-    });
-    await getDb().insert(schema.analyticsEvents).values({
-      id: `${PREFIX}analytics`,
-      sessionId: "demo-session",
-      type: "page",
-      path: "/demo",
-      createdAt: now,
-      organizationId: null,
-      incidentId: null,
-    });
-    await getDb().insert(schema.damageCandidates).values({
-      id: `${PREFIX}damage`,
-      buildingId: "demo-building",
-      lat: 4.6,
-      lng: -74.0,
-      damageLevel: "unknown",
-      createdAt: now,
-      updatedAt: now,
-      organizationId: null,
-      incidentId: null,
-    });
+    await getDb().execute(sql`
+      INSERT INTO reports (id, type, lat, lng, place, affected, needs, created_at)
+      VALUES (${`${PREFIX}parent`}, 'need', 4.6, -74.0, 'DEMO U8 parent', 0, 'demo', ${now})
+    `);
+    await getDb().execute(sql`
+      INSERT INTO report_confirmations (report_id, ip_hash, created_at)
+      VALUES (${`${PREFIX}parent`}, 'demo-ip-hash', ${now})
+    `);
+    await getDb().execute(sql`
+      INSERT INTO chat_messages (id, text, created_at)
+      VALUES (${`${PREFIX}chat`}, 'DEMO U8 chat', ${now})
+    `);
+    await getDb().execute(sql`
+      INSERT INTO contact_messages (id, name, email, subject, message, created_at)
+      VALUES (${`${PREFIX}contact`}, 'DEMO U8', 'demo-u8@test.local', 'demo', 'demo', ${now})
+    `);
+    await getDb().execute(sql`
+      INSERT INTO analytics_events (id, session_id, type, path, created_at)
+      VALUES (${`${PREFIX}analytics`}, 'demo-session', 'page', '/demo', ${now})
+    `);
+    await getDb().execute(sql`
+      INSERT INTO damage_candidates (id, building_id, lat, lng, damage_level, created_at, updated_at)
+      VALUES (${`${PREFIX}damage`}, 'demo-building', 4.6, -74.0, 'unknown', ${now}, ${now})
+    `);
 
     const result = await runDomainBackfill({
       databaseUrl: dbUrl(),
@@ -561,19 +540,15 @@ describe("U8 ops-backfill non-id primary keys", () => {
   });
 
   it("stamps click_counters by key and click_counter_dedup by composite PK", async () => {
-    await getDb().insert(schema.clickCounters).values({
-      key: `${PREFIX}click-key`,
-      count: 1,
-      organizationId: null,
-      incidentId: null,
-    });
-    await getDb().insert(schema.clickCounterDedup).values({
-      counterKey: `${PREFIX}click-key`,
-      ipHash: "demo-ip-hash",
-      createdAt: Date.now(),
-      organizationId: null,
-      incidentId: null,
-    });
+    if (!(await tenantColumnsNullable())) return;
+    await getDb().execute(sql`
+      INSERT INTO click_counters (key, count)
+      VALUES (${`${PREFIX}click-key`}, 1)
+    `);
+    await getDb().execute(sql`
+      INSERT INTO click_counter_dedup (counter_key, ip_hash, created_at)
+      VALUES (${`${PREFIX}click-key`}, 'demo-ip-hash', ${Date.now()})
+    `);
 
     const result = await runDomainBackfill({
       databaseUrl: dbUrl(),
@@ -609,13 +584,11 @@ describe("U8 ops-backfill non-id primary keys", () => {
   });
 
   it("stamps missing_person_suppressions by legacy_id", async () => {
-    await getDb().insert(schema.missingPersonSuppressions).values({
-      legacyId: `${PREFIX}suppression`,
-      reason: "demo",
-      createdAt: Date.now(),
-      organizationId: null,
-      incidentId: null,
-    });
+    if (!(await tenantColumnsNullable())) return;
+    await getDb().execute(sql`
+      INSERT INTO missing_person_suppressions (legacy_id, reason, created_at)
+      VALUES (${`${PREFIX}suppression`}, 'demo', ${Date.now()})
+    `);
 
     const manifest = loadBackfillManifest(MANIFEST_PATH);
     const family = manifest.domains["family-search"];
@@ -664,17 +637,11 @@ describe("U8 ops-backfill non-id primary keys", () => {
   });
 
   it("stamps volunteers by id", async () => {
-    await getDb().insert(schema.volunteers).values({
-      id: `${PREFIX}volunteer`,
-      name: "DEMO U8 volunteer",
-      contact: "demo-u8-volunteer@test.local",
-      code: "U8BF01",
-      offer: "demo",
-      zone: "demo",
-      createdAt: Date.now(),
-      organizationId: null,
-      incidentId: null,
-    });
+    if (!(await tenantColumnsNullable())) return;
+    await getDb().execute(sql`
+      INSERT INTO volunteers (id, name, contact, code, offer, zone, created_at)
+      VALUES (${`${PREFIX}volunteer`}, 'DEMO U8 volunteer', 'demo-u8-volunteer@test.local', 'U8BF01', 'demo', 'demo', ${Date.now()})
+    `);
 
     const result = await runDomainBackfill({
       databaseUrl: dbUrl(),

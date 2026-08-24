@@ -11,7 +11,7 @@
  */
 import { beforeAll, describe, expect, it } from "vitest";
 import "../helpers";
-import { SYNTHETIC_PNG_DATA_URL, expectNoSensitiveFields } from "../helpers";
+import { SYNTHETIC_PNG_DATA_URL, expectNoSensitiveFields, testTenantOwnership } from "../helpers";
 import request from "supertest";
 
 let app: import("express").Express;
@@ -105,6 +105,7 @@ describe("GET /api/reports", () => {
         affected: 0,
         needs: "",
         createdAt: Date.now() + index,
+        ...testTenantOwnership(),
       })),
     );
     invalidate();

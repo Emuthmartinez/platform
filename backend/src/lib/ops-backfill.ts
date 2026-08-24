@@ -93,7 +93,7 @@ export function loadBackfillManifest(path: string): BackfillManifest {
 
 export function assertSafeDatabaseUrl(
   url: string,
-  opts: { confirm?: string; nodeEnv?: string },
+  opts: { confirm?: string; nodeEnv?: string; expectedConfirm?: string },
 ): { host: string; local: boolean } {
   if (!url) {
     throw new Error("DATABASE_URL is not set");
@@ -110,15 +110,16 @@ export function assertSafeDatabaseUrl(
     throw new Error("DATABASE_URL is not a valid URL");
   }
   const local = LOCAL_DB_HOSTS.has(host);
-  const confirmed = opts.confirm === REMOTE_CONFIRM;
+  const expectedConfirm = opts.expectedConfirm ?? REMOTE_CONFIRM;
+  const confirmed = opts.confirm === expectedConfirm;
   if (!local && !confirmed) {
     throw new Error(
-      `host "${host}" is not local. Pass --confirm ${REMOTE_CONFIRM} to run against a remote direct endpoint.`,
+      `host "${host}" is not local. Pass --confirm ${expectedConfirm} to run against a remote direct endpoint.`,
     );
   }
   if (opts.nodeEnv === "production" && !confirmed) {
     throw new Error(
-      `NODE_ENV=production requires --confirm ${REMOTE_CONFIRM}`,
+      `NODE_ENV=production requires --confirm ${expectedConfirm}`,
     );
   }
   return { host, local };

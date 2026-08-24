@@ -16,7 +16,7 @@ import { and, eq } from "drizzle-orm";
 import { beforeAll, describe, expect, it } from "vitest";
 import "./helpers";
 import request from "supertest";
-import { makeUserWithCaps } from "./helpers";
+import { makeUserWithCaps, testTenantOwnership} from "./helpers";
 
 let app: import("express").Express;
 let db: typeof import("@/db");
@@ -41,13 +41,13 @@ function syntheticDigits(): string {
 
 async function seedMissingReport(name: string): Promise<string> {
   const id = randomUUID();
-  await db.getDb().insert(db.schema.missingPersons).values({ id, name, createdAt: Date.now() });
+  await db.getDb().insert(db.schema.missingPersons).values({ id, name, createdAt: Date.now(), ...testTenantOwnership() });
   return id;
 }
 
 async function seedHospital(name: string): Promise<string> {
   const id = randomUUID();
-  await db.getDb().insert(db.schema.hospitals).values({ id, name, createdAt: Date.now() });
+  await db.getDb().insert(db.schema.hospitals).values({ id, name, createdAt: Date.now(), ...testTenantOwnership() });
   return id;
 }
 
@@ -65,7 +65,8 @@ async function seedPatientWithHash(
     documentHash,
     admittedAt: now,
     updatedAt: now,
-  });
+      ...testTenantOwnership(),
+    });
   return id;
 }
 

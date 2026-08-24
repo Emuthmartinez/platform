@@ -19,7 +19,7 @@
 import { randomUUID } from "crypto";
 import { and, eq, or } from "drizzle-orm";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import "./helpers";
+import { testTenantOwnership } from "./helpers";
 import { colombiaTenantScope } from "@/lib/colombia-tenant";
 
 let db: typeof import("@/db");
@@ -54,7 +54,8 @@ async function makeHospital(): Promise<string> {
     id,
     name: `DEMO Hospital Matcher ${id.slice(0, 8)}`,
     createdAt: Date.now(),
-  });
+      ...testTenantOwnership(),
+    });
   return id;
 }
 
@@ -70,7 +71,8 @@ async function seedMissing(input: {
     age: input.age ?? null,
     documentHash: input.documentHash ?? null,
     createdAt: Date.now(),
-  });
+      ...testTenantOwnership(),
+    });
   return id;
 }
 
@@ -90,7 +92,8 @@ async function seedPatient(input: {
     documentHash: input.documentHash ?? null,
     admittedAt: now,
     updatedAt: now,
-  });
+      ...testTenantOwnership(),
+    });
   return id;
 }
 
@@ -144,7 +147,8 @@ async function seedLink(
     method: "manual",
     matcherVersion: null,
     proposedAt: Date.now(),
-  });
+      ...testTenantOwnership(),
+    });
 }
 
 interface FakeMessage {

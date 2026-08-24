@@ -19,7 +19,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import "./helpers";
 import request from "supertest";
 import { PROMPT_VERSION } from "@/services/ocr/minimax-config";
-import { makeUserWithCaps } from "./helpers";
+import { makeUserWithCaps, testTenantOwnership} from "./helpers";
 
 let app: import("express").Express;
 let svc: typeof import("@/services/patient-imports");
@@ -50,7 +50,7 @@ async function makeHospital(name: string): Promise<{ id: string; name: string }>
 	await db
 		.getDb()
 		.insert(db.schema.hospitals)
-		.values({ id, name, createdAt: Date.now() });
+		.values({ id, name, createdAt: Date.now(), ...testTenantOwnership() });
 	return { id, name };
 }
 
@@ -341,7 +341,8 @@ describe("PATCH /:id/rows/:rowId — edición", () => {
 			promptVersion: PROMPT_VERSION,
 			correctedBy: actorId,
 			correctedAt: Date.now(),
-		});
+      ...testTenantOwnership(),
+    });
 		expect(await corrections(rowId)).toHaveLength(1);
 
 		// "Reintento": el MISMO PATCH que produjo esa corrección.
@@ -559,7 +560,8 @@ describe("POST /:id/rows/:rowId/dedup", () => {
 			contact: "",
 			admittedAt: Date.now(),
 			updatedAt: Date.now(),
-		});
+      ...testTenantOwnership(),
+    });
 
 		const { eq, and } = await import("drizzle-orm");
 		const countBefore = (
@@ -624,7 +626,8 @@ describe("POST /:id/rows/:rowId/dedup", () => {
 			contact: "",
 			admittedAt: Date.now(),
 			updatedAt: Date.now(),
-		});
+      ...testTenantOwnership(),
+    });
 
 		const { importId, rows } = await makeJsonImport([
 			{ name: patientName, hospital: hospital.name, age: 19 },
@@ -658,7 +661,8 @@ describe("POST /:id/rows/:rowId/dedup", () => {
 			contact: "",
 			admittedAt: Date.now(),
 			updatedAt: Date.now(),
-		});
+      ...testTenantOwnership(),
+    });
 		const { importId, rows } = await makeJsonImport([
 			{ name: patientName, hospital: hospital.name, age: 71 },
 		]);

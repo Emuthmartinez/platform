@@ -15,7 +15,7 @@
 import { randomUUID } from "crypto";
 import { and, eq } from "drizzle-orm";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import "./helpers";
+import { testTenantOwnership } from "./helpers";
 import { generatePrn } from "@/lib/prn";
 import { colombiaTenantScope } from "@/lib/colombia-tenant";
 
@@ -52,13 +52,16 @@ async function seedMissingReport(): Promise<string> {
     id,
     name: `DEMO PRN Missing ${id.slice(0, 8)}`,
     createdAt: Date.now(),
-  });
+      ...testTenantOwnership(),
+    });
   return id;
 }
 
 async function seedUnidentifiedPerson(): Promise<string> {
   const id = randomUUID();
-  await db.getDb().insert(db.schema.unidentifiedPersons).values({ id, createdAt: Date.now() });
+  await db.getDb().insert(db.schema.unidentifiedPersons).values({ id, createdAt: Date.now(),
+      ...testTenantOwnership(),
+    });
   return id;
 }
 
@@ -68,7 +71,8 @@ async function makeHospital(): Promise<string> {
     id,
     name: `DEMO Hospital PRN ${id.slice(0, 8)}`,
     createdAt: Date.now(),
-  });
+      ...testTenantOwnership(),
+    });
   return id;
 }
 
@@ -81,7 +85,8 @@ async function seedHospitalPatient(hospitalId: string): Promise<string> {
     name: `DEMO PRN Paciente ${id.slice(0, 8)}`,
     admittedAt: now,
     updatedAt: now,
-  });
+      ...testTenantOwnership(),
+    });
   return id;
 }
 

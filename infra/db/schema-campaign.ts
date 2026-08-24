@@ -7,7 +7,7 @@ import {
   jsonb,
   index,
 } from "drizzle-orm/pg-core";
-import { incidentOwnershipColumns, incidentOwnershipFk } from "./schema";
+import { incidentOwnershipColumns, incidentOwnershipFk, tenantScopeIndex } from "./schema";
 
 const epochMs = (name: string) => bigint(name, { mode: "number" });
 
@@ -52,6 +52,7 @@ export const campaignSites = pgTable(
     index("campaign_sites_campaign_idx").on(t.campaign, t.status),
     index("campaign_sites_city_idx").on(t.city),
     incidentOwnershipFk("campaign_sites", t),
+    tenantScopeIndex("campaign_sites", t),
   ],
 );
 
@@ -73,6 +74,7 @@ export const campaignSiteStewards = pgTable(
     index("campaign_site_stewards_site_idx").on(t.siteId, t.active),
     index("campaign_site_stewards_token_idx").on(t.accessTokenHash, t.active),
     incidentOwnershipFk("campaign_site_stewards", t),
+    tenantScopeIndex("campaign_site_stewards", t),
   ],
 );
 
@@ -107,6 +109,7 @@ export const materialPledges = pgTable(
     index("material_pledges_campaign_idx").on(t.campaign, t.status),
     index("material_pledges_site_idx").on(t.siteId, t.status),
     incidentOwnershipFk("material_pledges", t),
+    tenantScopeIndex("material_pledges", t),
   ],
 );
 
@@ -133,6 +136,7 @@ export const materialReceipts = pgTable(
     index("material_receipts_site_idx").on(t.siteId, t.receivedAt),
     index("material_receipts_pledge_idx").on(t.pledgeId),
     incidentOwnershipFk("material_receipts", t),
+    tenantScopeIndex("material_receipts", t),
   ],
 );
 
@@ -161,5 +165,6 @@ export const materialShipments = pgTable(
   (t) => [
     index("material_shipments_campaign_idx").on(t.campaign, t.status),
     incidentOwnershipFk("material_shipments", t),
+    tenantScopeIndex("material_shipments", t),
   ],
 );

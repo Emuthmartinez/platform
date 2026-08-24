@@ -13,7 +13,7 @@ import { randomUUID } from "node:crypto";
 import { beforeAll, describe, expect, it } from "vitest";
 import "./helpers"; // fija env ANTES de cargar la app
 import { and, eq, inArray } from "drizzle-orm";
-import { ensureSeed } from "./helpers";
+import { ensureSeed, testTenantOwnership} from "./helpers";
 import { deterministicPatientId } from "@/services/patient-imports/apply";
 
 let svc: typeof import("@/services/patient-imports");
@@ -41,7 +41,8 @@ async function processedImportWithHospital(): Promise<{
 		address: "",
 		priorityZone: "P2",
 		createdAt: Date.now(),
-	});
+      ...testTenantOwnership(),
+    });
 	const created = await svc.createImport(
 		{
 			source: "test-resume",
@@ -107,7 +108,8 @@ describe("applyImport reanudable (sin transacciones interactivas)", () => {
 			contact: "",
 			admittedAt: now,
 			updatedAt: now,
-		});
+      ...testTenantOwnership(),
+    });
 		await conn
 			.update(db.schema.patientImportRows)
 			.set({ rowStatus: "applying" })

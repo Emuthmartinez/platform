@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import { beforeAll, describe, expect, it } from "vitest";
 import "./helpers";
 import request from "supertest";
-import { makeUserWithCaps } from "./helpers";
+import { makeUserWithCaps, testTenantOwnership} from "./helpers";
 
 let svc: typeof import("@/services/patient-imports");
 let db: typeof import("@/db");
@@ -127,7 +127,8 @@ describe("proyección pública de pacientes", () => {
 			name: `Refugio Demo ${hospitalId.slice(0, 8)}`,
 			facilityType: "refugio",
 			createdAt: Date.now(),
-		});
+      ...testTenantOwnership(),
+    });
 
 		const created = await request(app)
 			.post(`/api/hospitals/${hospitalId}/patients`)
@@ -163,7 +164,8 @@ describe("applyImport", () => {
 			id: hospitalId,
 			name: hospitalName,
 			createdAt: Date.now(),
-		});
+      ...testTenantOwnership(),
+    });
 		const patientName = `Paciente Demo ${hospitalId.slice(0, 8)}`;
 		const sensitiveNote = "CI V-0.000.000 (demo), diagnóstico confidencial demo";
 		const created = await svc.createImport(
@@ -201,7 +203,8 @@ describe("applyImport", () => {
 			id: hospitalId,
 			name: hospitalName,
 			createdAt: Date.now(),
-		});
+      ...testTenantOwnership(),
+    });
 		const tag = hospitalId.slice(0, 8);
 		const imp = await svc.createImport(
 			{
@@ -217,11 +220,12 @@ describe("applyImport", () => {
 		const rows = await svc.listImportRows(imp.id);
 		const now = Date.now();
 		const prePatientId = randomUUID();
+		const ownership = testTenantOwnership();
 		await conn.execute(sql`
       insert into hospital_patients
-        (id, hospital_id, name, age, condition, status, notes, contact, admitted_at, updated_at)
+        (id, hospital_id, name, age, condition, status, notes, contact, admitted_at, updated_at, organization_id, incident_id)
       values
-        (${prePatientId}, ${hospitalId}, ${rows[0]!.name}, null, 'unknown', 'hospitalized', '', '', ${now}, ${now})
+        (${prePatientId}, ${hospitalId}, ${rows[0]!.name}, null, 'unknown', 'hospitalized', '', '', ${now}, ${now}, ${ownership.organizationId}, ${ownership.incidentId})
     `);
 		await conn
 			.update(db.schema.patientImportRows)
@@ -245,7 +249,8 @@ describe("applyImport", () => {
 			id: hospitalId,
 			name: hospitalName,
 			createdAt: Date.now(),
-		});
+      ...testTenantOwnership(),
+    });
 		const created = await svc.createImport(
 			{
 				source: "atomic-test",
@@ -277,7 +282,8 @@ describe("purgeAppliedRawData", () => {
 			id: hospitalId,
 			name: hospitalName,
 			createdAt: Date.now(),
-		});
+      ...testTenantOwnership(),
+    });
 		const applied = await svc.createImport(
 			{
 				source: "test",

@@ -14,7 +14,7 @@
 import { randomUUID } from "crypto";
 import { and, eq, isNull } from "drizzle-orm";
 import { beforeAll, describe, expect, it } from "vitest";
-import "./helpers";
+import { testTenantOwnership } from "./helpers";
 
 let db: typeof import("@/db");
 let personRecords: typeof import("@/services/person-records");
@@ -40,7 +40,8 @@ async function makeHospital(): Promise<string> {
     id,
     name: `DEMO Hospital Clusters ${id.slice(0, 8)}`,
     createdAt: Date.now(),
-  });
+      ...testTenantOwnership(),
+    });
   return id;
 }
 
@@ -51,7 +52,8 @@ async function seedMissing(name: string, age: number | null = null): Promise<str
     name,
     age,
     createdAt: Date.now(),
-  });
+      ...testTenantOwnership(),
+    });
   return id;
 }
 
@@ -64,7 +66,8 @@ async function seedPatient(hospitalId: string, name: string): Promise<string> {
     name,
     admittedAt: now,
     updatedAt: now,
-  });
+      ...testTenantOwnership(),
+    });
   return id;
 }
 
@@ -94,6 +97,7 @@ async function seedConfirmedLink(prnX: string, prnY: string): Promise<string> {
       method: "manual",
       matcherVersion: null,
       proposedAt: Date.now(),
+      ...testTenantOwnership(),
     })
     .onConflictDoNothing();
   return id;

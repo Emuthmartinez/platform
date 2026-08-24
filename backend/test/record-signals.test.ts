@@ -39,7 +39,7 @@ import { and, eq } from "drizzle-orm";
 import { beforeAll, describe, expect, it } from "vitest";
 import "./helpers";
 import request from "supertest";
-import { makeUserWithCaps } from "./helpers";
+import { makeUserWithCaps, testTenantOwnership} from "./helpers";
 
 let app: import("express").Express;
 let db: typeof import("@/db");
@@ -71,7 +71,8 @@ async function seedLocalMissing(opts: { name: string }): Promise<string> {
     id,
     name: opts.name,
     createdAt: Date.now(),
-  });
+      ...testTenantOwnership(),
+    });
   return id;
 }
 
@@ -301,6 +302,7 @@ describe("POST /:signalId/decision — confirmar: aplica claimedStatus al regist
       method: "manual",
       matcherVersion: null,
       proposedAt: Date.now(),
+      ...testTenantOwnership(),
     });
     await personLinksService.decideLink({
       linkId,
@@ -507,16 +509,30 @@ describe("GET / — cola de señales pendientes", () => {
     const row = await findMissingBySourceAndExternalId(source, externalId);
     const prn = await personRecords.ensurePrn("missing_report", row!.id);
 
-    const res = await request(app).get(BASE).set("Authorization", `Bearer ${authToken}`);
-    expect(res.status).toBe(200);
     type ListedSignal = {
+      id: string;
+      createdAt: number;
       prn: string;
       claimedStatus: string;
       storedStatus: string | null;
       source: string;
       record: { name: string; recordType: string } | null;
     };
-    const item = (res.body.items as ListedSignal[]).find((i) => i.prn === prn);
+    let after: string | undefined;
+    let item: ListedSignal | undefined;
+    for (let page = 0; page < 50 && !item; page += 1) {
+      const res = await request(app)
+        .get(BASE)
+        .query({ limit: 200, ...(after ? { after } : {}) })
+        .set("Authorization", `Bearer ${authToken}`);
+      expect(res.status).toBe(200);
+      const items = res.body.items as ListedSignal[];
+      item = items.find((row) => row.prn === prn);
+      if (item || items.length === 0) break;
+      const last = items[items.length - 1];
+      if (!last) break;
+      after = `${last.createdAt}_${last.id}`;
+    }
     expect(item).toBeTruthy();
     expect(item).toMatchObject({ claimedStatus: "found", storedStatus: "active", source });
     expect(item!.record).toMatchObject({ name: `DEMO Lista ${t}`, recordType: "missing_report" });

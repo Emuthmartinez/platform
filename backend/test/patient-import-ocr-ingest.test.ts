@@ -13,7 +13,7 @@
  */
 import { randomUUID } from "crypto";
 import { beforeAll, describe, expect, it } from "vitest";
-import "./helpers";
+import { testTenantOwnership } from "./helpers";
 import type { MinimaxOcrConfig } from "@/services/ocr/minimax-config";
 import {
   OCR_REVIEW_WARNING,
@@ -61,6 +61,7 @@ describe("ingestOcrImport — review-required, nunca auto-aplica", () => {
       id: hospitalId,
       name: hospitalName,
       createdAt: Date.now(),
+      ...testTenantOwnership(),
     });
 
     // Lote OCR: se crea SIN filas (las extrae el "worker"). contentType image/*.

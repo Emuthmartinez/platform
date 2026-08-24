@@ -29,7 +29,7 @@ import { and, eq } from "drizzle-orm";
 import { beforeAll, describe, expect, it } from "vitest";
 import "./helpers";
 import request from "supertest";
-import { makeUserWithCaps } from "./helpers";
+import { makeUserWithCaps, testTenantOwnership} from "./helpers";
 
 const ADMIN_TOKEN = "test-admin-password-u10-0123456789";
 process.env.ADMIN_PASSWORD = ADMIN_TOKEN;
@@ -60,7 +60,8 @@ async function seedMissing(name: string): Promise<string> {
     id,
     name,
     createdAt: Date.now(),
-  });
+      ...testTenantOwnership(),
+    });
   return id;
 }
 
@@ -70,7 +71,8 @@ async function makeHospital(): Promise<string> {
     id,
     name: `DEMO Hospital Deletion ${id.slice(0, 8)}`,
     createdAt: Date.now(),
-  });
+      ...testTenantOwnership(),
+    });
   return id;
 }
 
@@ -83,7 +85,8 @@ async function seedPatient(hospitalId: string, name: string): Promise<string> {
     name,
     admittedAt: now,
     updatedAt: now,
-  });
+      ...testTenantOwnership(),
+    });
   return id;
 }
 
@@ -113,6 +116,7 @@ async function seedConfirmedLink(prnX: string, prnY: string): Promise<string> {
       method: "manual",
       matcherVersion: null,
       proposedAt: Date.now(),
+      ...testTenantOwnership(),
     })
     .onConflictDoNothing();
   return id;
@@ -344,6 +348,7 @@ describe("DELETE /api/missing/:id — registro sin PRN (nunca estampado)", () =>
       id,
       name: `DEMO Delete NoPrn ${token()}`,
       createdAt: Date.now(),
+      ...testTenantOwnership(),
     });
     expect(await registryRowByRecord("missing_report", id)).toBeNull();
 
