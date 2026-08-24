@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "operationId": "u8-colombia-backfill",
+  "ktd": "KTD6",
+  "organizationId": "org_mallanet",
+  "incidentId": "inc_terremoto_colombia_2026",
+  "defaultBatchSize": 200,
+  "domains": {
+    "reports": {
+      "migration": "0015_reports_tenant.sql",
+      "tables": [
+        { "name": "analytics_events", "pk": ["id"] },
+        { "name": "chat_messages", "pk": ["id"] },
+        { "name": "contact_messages", "pk": ["id"] },
+        { "name": "damage_candidates", "pk": ["id"] },
+        { "name": "report_confirmations", "pk": ["report_id", "ip_hash"] },
+        { "name": "reports", "pk": ["id"] }
+      ]
+    }
+  }
+}

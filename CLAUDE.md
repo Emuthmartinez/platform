@@ -71,6 +71,10 @@ flowchart LR
   and CI does not run them either. Migrations target Neon's **direct**
   endpoint, never the `-pooler` endpoint. A deploy ships **code**. The
   schema is always a separate, earlier step.
+- Run the U8 operational backfill (`backend/worker/ops-backfill.ts` /
+  `npm run ops:backfill`) against staging or production Neon. A human
+  runs count-only, then apply, on the direct endpoint. An agent never
+  does this.
 - Change secrets in Doppler or tokens in Cloudflare.
 - Change DNS records, DNSSEC, or WAF rules for the zone.
 

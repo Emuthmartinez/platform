@@ -21,7 +21,8 @@
     "check:schema-drift": "tsx worker/check-schema-drift.ts",
     "check:table-classification": "tsx worker/check-table-classification.ts",
     "check:migration-journal": "tsx worker/check-migration-journal.ts",
-    "observe:db": "tsx worker/observe-db.ts"
+    "observe:db": "tsx worker/observe-db.ts",
+    "ops:backfill": "tsx worker/ops-backfill.ts"
   },
   "dependencies": {
     "@asteasolutions/zod-to-openapi": "^7.3.4",
