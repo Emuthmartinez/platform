@@ -698,11 +698,12 @@ This is the current `is_super_admin` model, not organization memberships.
   application-error page.
 - Durable job readback is green: fresh earthquake sync/fetch, zero recent dead
   letters, and zero unresolved failed imports.
+- With action-time confirmation, the Doppler staging operator authenticated in
+  Chrome. Users reports the account as active, `admin`, and superadmin;
+  Deployments and its create form load without browser errors.
 
 **Not claimed:**
 
-- successful operator credential submission (requires action-time user
-  confirmation in the retained Chrome session)
 - production readiness, Venezuela readiness, or an absolute absence of bugs
 
 ## Blocker packets (open)
