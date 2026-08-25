@@ -25,7 +25,8 @@
     "observe:db": "tsx worker/observe-db.ts",
     "ops:backfill": "tsx worker/ops-backfill.ts",
     "ops:tighten": "tsx worker/ops-tighten.ts",
-    "ops:ensure-superadmin": "tsx worker/ops-ensure-superadmin.ts"
+    "ops:ensure-superadmin": "tsx worker/ops-ensure-superadmin.ts",
+    "ops:ensure-platform-operator": "tsx worker/ops-ensure-platform-operator.ts"
   },
   "dependencies": {
     "@asteasolutions/zod-to-openapi": "^7.3.4",

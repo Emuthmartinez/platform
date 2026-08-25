@@ -80,6 +80,7 @@ describe("user-facing-mutation-needs-guard", () => {
       valid: [
         { code: `router.post("/", requireHuman, handler)`, filename: ROUTES },
         { code: `router.delete("/:id", requireAdmin, handler)`, filename: ROUTES },
+        { code: `router.post("/runs", requirePlatformOperator, handler)`, filename: ROUTES },
         // GET no es mutación -> ok sin gate.
         { code: `router.get("/", handler)`, filename: ROUTES },
         // Módulos de integración (DDD): la regla también los cubre.

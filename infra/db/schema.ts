@@ -88,6 +88,120 @@ export const deployments = pgTable(
   ],
 );
 
+/* ----------------------------------------------- platform control plane */
+// A separate authority from tenant users/roles. No user or superadmin is
+// implicitly elevated into this table (KTD31/KTD50).
+export const platformOperators = pgTable(
+  "platform_operators",
+  {
+    id: text("id").primaryKey(),
+    email: text("email").notNull(),
+    name: text("name").notNull().default(""),
+    passwordHash: text("password_hash").notNull(),
+    status: text("status").notNull().default("active"),
+    createdAt: epochMs("created_at").notNull(),
+    lastLoginAt: epochMs("last_login_at"),
+  },
+  (t) => [
+    uniqueIndex("idx_platform_operators_email").on(sql`lower(${t.email})`),
+    check("platform_operators_status_check", sql`${t.status} IN ('active', 'disabled')`),
+  ],
+);
+
+export const platformProvisioningRuns = pgTable(
+  "platform_provisioning_runs",
+  {
+    id: text("id").primaryKey(),
+    planDigest: text("plan_digest").notNull(),
+    status: text("status").notNull().default("planned"),
+    desiredState: jsonb("desired_state").notNull(),
+    plan: jsonb("plan").notNull(),
+    createdBy: text("created_by")
+      .notNull()
+      .references(() => platformOperators.id, { onDelete: "restrict" }),
+    approvedBy: text("approved_by").references(() => platformOperators.id, {
+      onDelete: "restrict",
+    }),
+    createdAt: epochMs("created_at").notNull(),
+    approvedAt: epochMs("approved_at"),
+    updatedAt: epochMs("updated_at").notNull(),
+  },
+  (t) => [
+    uniqueIndex("idx_platform_runs_digest").on(t.planDigest),
+    check(
+      "platform_runs_status_check",
+      sql`${t.status} IN ('planned', 'approved', 'applying', 'waiting_external', 'complete', 'failed')`,
+    ),
+    check(
+      "platform_runs_approval_check",
+      sql`(${t.approvedBy} IS NULL AND ${t.approvedAt} IS NULL) OR (${t.approvedBy} IS NOT NULL AND ${t.approvedAt} IS NOT NULL AND ${t.approvedBy} <> ${t.createdBy})`,
+    ),
+  ],
+);
+
+export const platformProvisioningSteps = pgTable(
+  "platform_provisioning_steps",
+  {
+    id: text("id").primaryKey(),
+    runId: text("run_id")
+      .notNull()
+      .references(() => platformProvisioningRuns.id, { onDelete: "cascade" }),
+    key: text("key").notNull(),
+    ordinal: integer("ordinal").notNull(),
+    execution: text("execution").notNull(),
+    status: text("status").notNull().default("pending"),
+    detail: jsonb("detail"),
+    updatedAt: epochMs("updated_at").notNull(),
+  },
+  (t) => [
+    uniqueIndex("idx_platform_steps_run_key").on(t.runId, t.key),
+    index("idx_platform_steps_run_ordinal").on(t.runId, t.ordinal),
+    check("platform_steps_execution_check", sql`${t.execution} IN ('automatic', 'external')`),
+    check(
+      "platform_steps_status_check",
+      sql`${t.status} IN ('pending', 'running', 'complete', 'waiting_external', 'failed')`,
+    ),
+  ],
+);
+
+// Preview specifications are deliberately not entries in `deployments`, which
+// is the live hostname resolver. Public activation is a later, explicit gate.
+export const platformDeploymentSpecs = pgTable(
+  "platform_deployment_specs",
+  {
+    key: text("key").primaryKey(),
+    organizationKey: text("organization_key").notNull(),
+    incidentKey: text("incident_key").notNull(),
+    hostname: text("hostname").notNull(),
+    lifecycle: text("lifecycle").notNull().default("preview"),
+    provisioningRunId: text("provisioning_run_id")
+      .notNull()
+      .references(() => platformProvisioningRuns.id, { onDelete: "restrict" }),
+    createdAt: epochMs("created_at").notNull(),
+    updatedAt: epochMs("updated_at").notNull(),
+  },
+  (t) => [
+    uniqueIndex("idx_platform_specs_hostname").on(t.hostname),
+    check("platform_specs_lifecycle_check", sql`${t.lifecycle} IN ('preview', 'retired')`),
+  ],
+);
+
+export const platformAuditLog = pgTable(
+  "platform_audit_log",
+  {
+    id: text("id").primaryKey(),
+    actorOperatorId: text("actor_operator_id")
+      .notNull()
+      .references(() => platformOperators.id, { onDelete: "restrict" }),
+    action: text("action").notNull(),
+    targetType: text("target_type"),
+    targetId: text("target_id"),
+    metadata: jsonb("metadata"),
+    createdAt: epochMs("created_at").notNull(),
+  },
+  (t) => [index("idx_platform_audit_created").on(t.createdAt)],
+);
+
 /** Tenant columns. U8 tighten makes these NOT NULL on incident-scoped tables. */
 export function incidentOwnershipColumns() {
   return {

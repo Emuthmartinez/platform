@@ -38,6 +38,7 @@ import { hubRouter } from "@/routes/hub";
 import { syncRouter } from "@/routes/sync";
 import { adminRouter } from "@/routes/admin";
 import { opRouter } from "@/routes/op";
+import { platformRouter } from "@/routes/platform";
 
 const app = express();
 
@@ -187,6 +188,10 @@ if (API_DOCS_ENABLED) {
 // interacción humana de navegador). Capacidades/auditoría por endpoint, todo
 // generado por la fábrica CRUD a partir de la config de cada recurso.
 mountPublicApi(app);
+
+// Global Mallanet control plane. This is intentionally outside /api/public and
+// uses a distinct operator table, cookie, secret, issuer, and JWT audience.
+app.use("/api/platform", platformRouter);
 
 // Rutas. (Reference endpoint ahora; el resto las añade el workflow de port.)
 app.use("/api/missing", missingRouter);

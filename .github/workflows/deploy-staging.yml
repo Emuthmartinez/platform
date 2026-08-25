@@ -5,7 +5,7 @@ name: Deploy staging
 #
 # Isolated staging Workers (workers.dev):
 #   API   -> mallanet-platform-api-staging
-#   admin -> mallanet-platform-admin-staging
+#   ops   -> mallanet-platform-ops-staging
 #   web   -> mallanet-platform-web-staging
 # Neon: mallanet-platform (hidden-cell), not Colombia.
 #
@@ -62,8 +62,8 @@ jobs:
             CLOUDFLARE_ACCOUNT_ID="$CLOUDFLARE_ACCOUNT_ID" \
             npx wrangler deploy --env staging'
 
-  admin:
-    name: Admin de staging
+  ops:
+    name: Mallanet control plane staging
     if: ${{ vars.ENABLE_PLATFORM_DEPLOYS == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -76,19 +76,19 @@ jobs:
         with:
           node-version: "24"
           cache: npm
-          cache-dependency-path: admin/package-lock.json
+          cache-dependency-path: ops/package-lock.json
       - uses: dopplerhq/cli-action@v3
 
       - name: Instalar dependencias
-        working-directory: admin
+        working-directory: ops
         run: npm ci
 
       - name: Build (OpenNext -> Workers)
-        working-directory: admin
+        working-directory: ops
         run: npx opennextjs-cloudflare build
 
       - name: Deploy
-        working-directory: admin
+        working-directory: ops
         env:
           DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN_STAGING }}
         run: |
@@ -101,12 +101,12 @@ jobs:
         run: |
           set -euo pipefail
           for i in $(seq 1 10); do
-            code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 https://mallanet-platform-admin-staging.e-muth-martinez.workers.dev/api/health || echo 000)
+            code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 https://mallanet-platform-ops-staging.e-muth-martinez.workers.dev/api/health || echo 000)
             echo "intento $i -> HTTP $code"
             [ "$code" = "200" ] && exit 0
             sleep 10
           done
-          echo "El panel de staging no devolvio 200"
+          echo "The Mallanet control plane did not return 200"
           exit 1
 
   frontend:

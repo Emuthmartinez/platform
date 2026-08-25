@@ -1,0 +1,21 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "mallanet-platform-ops",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-08-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
+  "services": [{ "binding": "PLATFORM_API", "service": "mallanet-platform-api" }],
+  "vars": { "PLATFORM_API_URL": "https://mallanet-platform-api.e-muth-martinez.workers.dev" },
+  "observability": { "enabled": true, "logs": { "enabled": true } },
+  "env": {
+    "staging": {
+      "name": "mallanet-platform-ops-staging",
+      "workers_dev": true,
+      "preview_urls": false,
+      "services": [{ "binding": "PLATFORM_API", "service": "mallanet-platform-api-staging" }],
+      "vars": { "PLATFORM_API_URL": "https://mallanet-platform-api-staging.e-muth-martinez.workers.dev" }
+    }
+  }
+}

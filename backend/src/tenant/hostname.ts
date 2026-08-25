@@ -48,7 +48,12 @@ export function isTenantExemptPath(pathname: string): boolean {
   const path = pathname.endsWith("/") && pathname.length > 1
     ? pathname.slice(0, -1)
     : pathname;
-  return path === "/api/healthz" || path === "/api/readyz";
+  return (
+    path === "/api/healthz" ||
+    path === "/api/readyz" ||
+    path === "/api/platform" ||
+    path.startsWith("/api/platform/")
+  );
 }
 
 export function unknownHostPayload(): { error: string } {

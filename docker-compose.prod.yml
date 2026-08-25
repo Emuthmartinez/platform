@@ -12,9 +12,9 @@
 #     instancia y quita los servicios `db`/`valkey` de este archivo.
 #   - Cabeceras de seguridad en Caddy (ver Caddyfile.example) alineadas con
 #     helmet/Next headers del resto de servicios.
-#   - Dominios productivos: variables WEB_DOMAIN / API_DOMAIN / ADMIN_DOMAIN
+#   - Dominios productivos: WEB_DOMAIN / API_DOMAIN / ADMIN_DOMAIN / OPS_DOMAIN
 #     (ver .env.example) — Caddyfile.example los lee como {$WEB_DOMAIN} etc.
-#   - Todos los servicios de app (backend/worker/frontend/admin/caddy):
+#   - Todos los servicios de app (backend/worker/frontend/admin/ops/caddy):
 #     security_opt no-new-privileges + cap_drop ALL. db/valkey/migrate solo
 #     llevan no-new-privileges (las imágenes oficiales de postgres/valkey
 #     necesitan caps extra en su init; no se les añadió cap_drop).
@@ -23,6 +23,7 @@
 #   ${WEB_DOMAIN}    -> frontend
 #   ${API_DOMAIN}    -> backend
 #   ${ADMIN_DOMAIN}  -> admin
+#   ${OPS_DOMAIN}    -> ops
 
 services:
   # Postgres co-ubicado en el mismo VPS (perfil "un solo box"). Solo accesible
@@ -161,6 +162,24 @@ services:
       - no-new-privileges:true
     cap_drop: ["ALL"]
 
+  ops:
+    build:
+      context: ./ops
+      dockerfile: Dockerfile
+    env_file: .prod.env
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      PLATFORM_API_URL: http://backend:8080
+      OPS_COOKIE_SECURE: "true"
+    networks: [mapa_prod_net]
+    restart: unless-stopped
+    depends_on:
+      - backend
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: ["ALL"]
+
   # TLS termina aquí. Perfil "un solo box": Caddy publica :80/:443 directo en
   # el host (HTTP-01/ALPN de Let's Encrypt necesita responder ahí). Sin
   # ningún edge/proxy externo delante — ver backend/src/lib/client-ip.ts y
@@ -182,6 +201,7 @@ services:
       - frontend
       - backend
       - admin
+      - ops
     security_opt:
       - no-new-privileges:true
     cap_add:
