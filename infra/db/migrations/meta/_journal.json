@@ -176,6 +176,20 @@
       "when": 1787491200000,
       "tag": "0024_tenant_tighten",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1787618492151,
+      "tag": "0025_mute_starfox",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1787619044880,
+      "tag": "0026_chilly_gamma_corps",
+      "breakpoints": true
     }
   ]
 }
