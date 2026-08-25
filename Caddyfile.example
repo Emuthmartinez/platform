@@ -3,7 +3,7 @@
 # Este archivo usa placeholders {$VAR} que Caddy sustituye desde el entorno
 # del proceso al cargar el Caddyfile — docker-compose.prod.yml pasa
 # `env_file: .prod.env` al servicio `caddy`, así que basta con definir
-# WEB_DOMAIN / API_DOMAIN / ADMIN_DOMAIN / ACME_EMAIL en tu `.prod.env` (ver
+# WEB_DOMAIN / API_DOMAIN / ADMIN_DOMAIN / OPS_DOMAIN / ACME_EMAIL en tu `.prod.env` (ver
 # `.env.example`). No hace falta editar este archivo por deploy.
 #
 # TLS: por defecto Caddy pide certificados automáticos vía Let's Encrypt
@@ -64,4 +64,12 @@
 	import security_headers
 
 	reverse_proxy admin:3000
+}
+
+# Mallanet global control plane. Deployment admins use their own panel.
+{$OPS_DOMAIN} {
+	encode zstd gzip
+	import security_headers
+
+	reverse_proxy ops:3000
 }

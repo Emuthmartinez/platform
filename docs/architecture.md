@@ -8,7 +8,7 @@ deployment's identity (name, domains, map center, contact) lives in
 
 ## Summary
 
-The project is a monorepo with three application services and one shared
+The project is a monorepo with five application services and one shared
 infrastructure layer:
 
 - `frontend/`: Next.js + React. It renders the UI, serves assets, and calls
@@ -36,6 +36,13 @@ infrastructure layer:
   on the queue worker, which is still **not** deployed — on Workers, batches
   queue but do not process. Hospital data loading goes through the direct
   CRUD routes instead.
+- `ops/`: the Mallanet global control plane. It is not an incident admin and
+  never exposes reports, missing people, hospitals, volunteers, or other
+  tenant records. Its BFF talks only to `/api/platform/*`, using a separate
+  operator table, signing secret, cookie, issuer, and JWT audience. It shows
+  organizations, incidents, active hostname routing, preview deployment
+  specifications, provisioning runs, operators, and platform audit events.
+  Preview specifications do not enter the live `deployments` resolver.
 - `infra/db/`: the Drizzle schema and the SQL migrations.
 - **Production today: Cloudflare Workers + Neon Postgres.**
   `docker-compose.prod.yml` + `Caddyfile.example` (a single VPS with Caddy)
@@ -64,7 +71,8 @@ flowchart LR
         caddy["Caddy :80/:443"]
         frontend["frontend<br/>Next.js :3000"]
         backend["backend<br/>Express :8080"]
-        admin["admin<br/>Next.js panel :3000"]
+    admin["admin<br/>Next.js panel :3000"]
+        ops["ops<br/>Mallanet control plane :3000"]
         pg["Postgres 16"]
         valkey["Valkey 8<br/>BullMQ + rate limit"]
     end
@@ -73,8 +81,10 @@ flowchart LR
     caddy -->|WEB_DOMAIN| frontend
     caddy -->|API_DOMAIN| backend
     caddy -->|ADMIN_DOMAIN| admin
+    caddy -->|OPS_DOMAIN| ops
     frontend -.SSR INTERNAL_API_URL.-> backend
     admin -.BFF EMERGENCY_API_URL.-> backend
+    ops -.BFF /api/platform only.-> backend
     backend --> pg
     backend --> valkey
     backend -.optional.-> storage
@@ -166,6 +176,13 @@ require human review before any deployment.
 
 - Express mounts its routers in `backend/src/routes/`, and delegates logic
   to `backend/src/services/`.
+- The global control plane is mounted at `/api/platform/*`, outside the
+  tenant-facing `/api/public/*` surface. Tenant JWTs are rejected by its
+  `mallanet-platform-ops` audience. Platform operator tokens are likewise
+  rejected by tenant auth. Provisioning is a durable plan/approve/apply
+  ledger: plan creation is deterministic, approval rejects the creator, apply
+  rejects the approver, retries are idempotent, and the current implementation
+  stops at `waiting_external`. There is no public-activation endpoint.
 - `backend/src/config/env.ts` validates the environment, fail-fast, at
   startup.
 - The API listens on `:8080`, and exposes two health checks:

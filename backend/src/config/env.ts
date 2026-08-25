@@ -22,10 +22,14 @@ const schema = z.object({
   // JWT de la superficie autenticada (api/public/*). Firma HS256. En prod DEBE
   // ser largo (validado abajo). Sin esto en dev, el login/invite no operan.
   JWT_SECRET: z.string().optional(),
+  // Platform operations uses a separate trust domain. Tenant-admin JWTs must
+  // never authorize portfolio or provisioning actions, even for superadmins.
+  PLATFORM_JWT_SECRET: z.string().optional(),
   // Vida del access token (segundos). Default 12h (alineado con ResponseGrid).
   JWT_TTL_SECONDS: z.coerce.number().default(43200),
   // Nombre de la cookie httpOnly que lleva el JWT en el navegador.
   AUTH_COOKIE_NAME: z.string().default("mapa_session"),
+  PLATFORM_AUTH_COOKIE_NAME: z.string().default("mallanet_ops_session"),
   // Cookie Secure (HTTPS). En prod SIEMPRE on; en dev local off para http.
   COOKIE_SECURE: z.coerce.boolean().default(false),
 
@@ -176,6 +180,16 @@ export const env = parsed.data;
 if (env.NODE_ENV === "production") {
   if (!env.JWT_SECRET || env.JWT_SECRET.length < 32) {
     console.error("❌ JWT_SECRET es obligatorio y debe tener >=32 caracteres en producción.");
+    process.exit(1);
+  }
+  if (!env.PLATFORM_JWT_SECRET || env.PLATFORM_JWT_SECRET.length < 32) {
+    console.error(
+      "❌ PLATFORM_JWT_SECRET es obligatorio y debe tener >=32 caracteres en producción.",
+    );
+    process.exit(1);
+  }
+  if (env.PLATFORM_JWT_SECRET === env.JWT_SECRET) {
+    console.error("❌ PLATFORM_JWT_SECRET debe ser distinto de JWT_SECRET.");
     process.exit(1);
   }
   if (!env.PATIENT_DOCUMENT_HASH_SECRET || env.PATIENT_DOCUMENT_HASH_SECRET.length < 32) {

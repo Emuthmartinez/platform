@@ -92,6 +92,7 @@ services:
       DATABASE_URL: postgres://mapa_app:localdev@db:5432/app
       MIGRATIONS_DIR: ../infra/db/migrations
       JWT_SECRET: local-dev-jwt-secret-not-for-prod-0123456789
+      PLATFORM_JWT_SECRET: local-dev-platform-jwt-secret-not-for-prod-012345
       SEED_ADMIN_EMAIL: "${SEED_ADMIN_EMAIL:-admin@example.org}"
       SEED_ADMIN_PASSWORD: localadminpass123
       SKIP_SEED: "${SKIP_SEED:-0}"
@@ -125,6 +126,7 @@ services:
       # Turnstile DESACTIVADO en local (sin secret → requireHuman deja pasar).
       # --- Auth api/public/* (JWT cookie + Bearer) ---
       JWT_SECRET: local-dev-jwt-secret-not-for-prod-0123456789
+      PLATFORM_JWT_SECRET: local-dev-platform-jwt-secret-not-for-prod-012345
       COOKIE_SECURE: "false" # http local; en prod va a true (validado por env)
       # Base para los links de invitación/reset. Es el PANEL admin (ahí aterriza
       # quien acepta una invitación), no el sitio público. Local: :3001; en prod
@@ -204,6 +206,22 @@ services:
       SESSION_MAX_AGE_SECONDS: "43200"
     ports:
       - "3001:3000"
+    depends_on:
+      - backend
+
+  # Mallanet global control plane. This is separate from each deployment's
+  # incident admin and is exposed locally on :3002.
+  ops:
+    build:
+      context: ./ops
+      dockerfile: Dockerfile
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      PLATFORM_API_URL: http://backend:8080
+      OPS_COOKIE_SECURE: "false"
+    ports:
+      - "3002:3000"
     depends_on:
       - backend
 

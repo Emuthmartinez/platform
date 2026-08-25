@@ -16,6 +16,8 @@ export function signToken(userId: string): string {
   if (!env.JWT_SECRET) throw new Error("JWT_SECRET no configurado");
   return jwt.sign({ sub: userId }, env.JWT_SECRET, {
     algorithm: "HS256",
+    audience: "mallanet-tenant-admin",
+    issuer: "mallanet-deployment-api",
     expiresIn: env.JWT_TTL_SECONDS,
   });
 }
@@ -24,7 +26,21 @@ export function signToken(userId: string): string {
 export function verifyToken(token: string): JwtPayload | null {
   if (!env.JWT_SECRET) return null;
   try {
-    const decoded = jwt.verify(token, env.JWT_SECRET, { algorithms: ["HS256"] });
+    let decoded: string | jwt.JwtPayload;
+    try {
+      decoded = jwt.verify(token, env.JWT_SECRET, {
+        algorithms: ["HS256"],
+        audience: "mallanet-tenant-admin",
+        issuer: "mallanet-deployment-api",
+      });
+    } catch {
+      // Compatibility for tenant sessions issued before audience isolation.
+      // New tokens always include aud/iss, so this expires with the old TTL.
+      decoded = jwt.verify(token, env.JWT_SECRET, { algorithms: ["HS256"] });
+      if (typeof decoded !== "object" || decoded.aud !== undefined || decoded.iss !== undefined) {
+        return null;
+      }
+    }
     if (typeof decoded === "object" && decoded && typeof decoded.sub === "string") {
       return { sub: decoded.sub };
     }

@@ -177,6 +177,7 @@ const userFacingMutationNeedsGuard = {
       "requireAdmin",
       "requireCapability",
       "requireCron",
+      "requirePlatformOperator", // distinct global control-plane authority
       "requireSupplyWrite", // admin-o-POC token (hospitales: insumos)
     ]);
     return {

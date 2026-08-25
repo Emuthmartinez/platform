@@ -10,6 +10,7 @@ describe("isolated platform Worker names", () => {
     const files = [
       "backend/wrangler.jsonc",
       "admin/wrangler.jsonc",
+      "ops/wrangler.jsonc",
       "frontend/wrangler.jsonc",
     ];
     for (const rel of files) {
@@ -27,6 +28,7 @@ describe("isolated platform Worker names", () => {
   it("staging workers.dev is on and only the Colombia staging browser origin crosses the boundary", () => {
     const backend = read("backend/wrangler.jsonc");
     const admin = read("admin/wrangler.jsonc");
+    const ops = read("ops/wrangler.jsonc");
     expect(backend).toMatch(
       /"name": "mallanet-platform-api-staging"[\s\S]*?"workers_dev": true/,
     );
@@ -44,6 +46,13 @@ describe("isolated platform Worker names", () => {
     );
     expect(backend).not.toMatch(/"routes"\s*:/);
     expect(admin).not.toMatch(/terremotocolombia\.co/);
+    expect(ops).toMatch(
+      /"name": "mallanet-platform-ops-staging"[\s\S]*?"workers_dev": true/,
+    );
+    expect(ops).toMatch(
+      /"binding": "PLATFORM_API"[\s\S]*?"service": "mallanet-platform-api-staging"/,
+    );
+    expect(ops).not.toMatch(/terremotocolombia\.co/);
     expect(backend).toMatch(/ENABLE_STRIPE_DONATIONS": "false"/);
   });
 

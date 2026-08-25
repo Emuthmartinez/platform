@@ -47,9 +47,10 @@ describe("overwriteTrustedHostnameHeader", () => {
 });
 
 describe("tenant path exemptions and pins", () => {
-  it("exempts only healthz and readyz", () => {
+  it("exempts health probes and the separately authenticated platform authority", () => {
     expect(isTenantExemptPath("/api/healthz")).toBe(true);
     expect(isTenantExemptPath("/api/readyz/")).toBe(true);
+    expect(isTenantExemptPath("/api/platform/auth/me")).toBe(true);
     expect(isTenantExemptPath("/api/reports")).toBe(false);
     expect(isTenantExemptPath("/api/health")).toBe(false);
   });

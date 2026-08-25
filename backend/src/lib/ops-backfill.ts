@@ -7,6 +7,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { z } from "zod";
+import { canonicalJson } from "@/lib/canonical-json";
 import {
   COLOMBIA_INCIDENT_ID,
   COLOMBIA_ORGANIZATION_ID,
@@ -66,21 +67,7 @@ export function quoteIdent(name: string): string {
   return `"${name}"`;
 }
 
-export function canonicalJson(value: unknown): string {
-  const sort = (v: unknown): unknown => {
-    if (Array.isArray(v)) return v.map(sort);
-    if (v && typeof v === "object") {
-      const obj = v as Record<string, unknown>;
-      const out: Record<string, unknown> = {};
-      for (const key of Object.keys(obj).sort()) {
-        out[key] = sort(obj[key]);
-      }
-      return out;
-    }
-    return v;
-  };
-  return JSON.stringify(sort(value));
-}
+export { canonicalJson };
 
 export function manifestChecksum(manifest: BackfillManifest): string {
   return createHash("sha256").update(canonicalJson(manifest)).digest("hex");
