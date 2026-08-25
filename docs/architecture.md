@@ -612,6 +612,25 @@ flowchart LR
 > assume path A while you read the rest of this document — several
 > sections (queues, transactions, Caddy) apply only to path A.
 
+### Mallanet control plane environments
+
+The Mallanet master control plane is isolated from incident deployments. Its
+production and staging tiers use separate Workers, Neon branches, Doppler
+configs, signing secrets, queue bindings, and rate-limit namespaces. Neither
+tier owns a Colombia hostname or zone route.
+
+| Tier | Control plane | Platform API | Neon | Doppler |
+| --- | --- | --- | --- | --- |
+| Production | `mallanet-platform-ops` | `mallanet-platform-api` | branch `production` | `mallanet-platform` / `prd` |
+| Staging | `mallanet-platform-ops-staging` | `mallanet-platform-api-staging` | branch `main` | `mallanet-platform` / `stg` |
+
+Both tiers use stable `*.e-muth-martinez.workers.dev` URLs with preview URLs
+disabled. The ops Worker reaches only its matching API through a service
+binding. Production promotion is manual and database-first: apply and verify
+the schema against the direct Neon endpoint, deploy the API, verify readiness,
+then deploy the ops Worker and verify `/api/health` plus operator login. The
+production branch must not contain staging acceptance runs or preview specs.
+
 ### B. Cloudflare Workers — what serves terremotocolombia.co today
 
 ```mermaid
@@ -656,9 +675,10 @@ flowchart TB
   cache or Express. `/api/healthz` and `/api/readyz` skip tenant lookup.
   Express does not use `req.hostname` or `X-Forwarded-Host` for tenant
   authority (`trust proxy` stays true for client IP).
-- All three wrangler configs set `workers_dev: false` at the top level and
-  under `env.staging`. They do not declare `routes`. Custom domains attach
-  through the account API.
+- The incident web, admin, and API configs use custom domains attached through
+  the account API and do not declare `routes`. The isolated Mallanet platform
+  API and control plane deliberately use stable workers.dev URLs; preview URLs
+  remain disabled in both platform environments.
 - `EDGE_RATE_LIMITER` is a Workers Rate Limiting binding. Production and
   staging use separate namespaces, so test traffic cannot consume production
   counters.
