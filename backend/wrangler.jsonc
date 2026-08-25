@@ -6,10 +6,10 @@
   // nodejs_compat da los builtins de Node (http, crypto, buffer, stream) que
   // necesitan Express, helmet, pg y jsonwebtoken.
   "compatibility_flags": ["nodejs_compat"],
-  // Isolated clone: root stays off workers.dev so a deploy without --env
-  // cannot publish a public URL. Staging uses workers.dev (no Colombia DNS).
-  // Do not add `routes`.
-  "workers_dev": false,
+  // The isolated Mallanet platform has its own production workers.dev URL.
+  // It does not own Colombia DNS and must never declare Colombia `routes`.
+  "workers_dev": true,
+  "preview_urls": false,
   // Isolated clone: no Colombia custom domain. Do not add `routes`.
   // Named environments do not inherit workers_dev.
   //
