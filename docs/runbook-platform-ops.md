@@ -7,10 +7,17 @@ records.
 
 ## Staging boundary
 
-- API: `mallanet-platform-api-staging` on Workers.dev.
-- Portal: `mallanet-platform-ops-staging` on Workers.dev.
+- API: `https://api-staging.mallanet.org` on `mallanet-platform-api-staging`.
+- Portal: `https://platform-staging.mallanet.org` on
+  `mallanet-platform-ops-staging`.
+- Rollback endpoints: the matching `*.mockraw.workers.dev` URLs; the prior
+  `*.e-muth-martinez.workers.dev` staging pair remains available during the
+  migration observation window.
 - Database: the isolated platform staging Neon branch, using its direct URL
   for migrations.
+- Cron: earthquake sync has its own schedule; a second staging-only maintenance
+  schedule runs geocoding and person reconciliation with separate job and
+  idempotency identities, fitting the account's five-trigger limit.
 - Colombia public, API, admin, production, and DNS routes are not changed by
   this workflow.
 - Venezuela must not be entered as a real provisioning request until Colombia
@@ -22,8 +29,9 @@ records.
 - Portal: `https://platform.mallanet.org` on `mallanet-platform-ops`.
 - Cloudflare account: Mockraw, which owns the `mallanet.org` zone.
 - Rollback endpoints: the matching `*.mockraw.workers.dev` URLs.
-- Staging stays in the original Cloudflare account. Production and staging use
-  explicit account IDs in their Wrangler environment configuration.
+- Staging uses the same zone-owning account with separate Worker, queue,
+  rate-limit, Doppler, and Neon resources. Production and staging use explicit
+  account IDs in their Wrangler environment configuration.
 
 Deploy production with the named Mockraw Wrangler profile. Deploy the API
 first and verify all three readiness endpoints. Then build and deploy `ops/`

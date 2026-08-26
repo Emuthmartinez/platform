@@ -30,27 +30,31 @@ Do not copy Colombia `DOPPLER_TOKEN` or Cloudflare tokens into
 
 ## Isolated Workers
 
-Staging shares the original Cloudflare account with the isolated Colombia
-staging Workers. Production runs in the Mockraw Cloudflare account that owns
-`mallanet.org`. Never deploy this clone with a `terremotocolombia-*` name.
+Both platform tiers run in the Mockraw Cloudflare account that owns
+`mallanet.org`. They use separate Worker and resource names. Colombia staging
+Workers remain in their existing account and call the platform through the
+staging custom domain. Never deploy this clone with a
+`terremotocolombia-*` name.
 
 | Worker                            | URL                                                                 |
 | --------------------------------- | ------------------------------------------------------------------- |
 | `mallanet-platform-api`           | https://api.mallanet.org                                            |
 | `mallanet-platform-ops`           | https://platform.mallanet.org                                       |
-| `mallanet-platform-api-staging`   | https://mallanet-platform-api-staging.e-muth-martinez.workers.dev   |
-| `mallanet-platform-admin-staging` | https://mallanet-platform-admin-staging.e-muth-martinez.workers.dev |
-| `mallanet-platform-web-staging`   | https://mallanet-platform-web-staging.e-muth-martinez.workers.dev   |
+| `mallanet-platform-api-staging`   | https://api-staging.mallanet.org                                    |
+| `mallanet-platform-ops-staging`   | https://platform-staging.mallanet.org                               |
 
 Production and staging keep `workers_dev` enabled for bounded rollback and
-diagnostics. Production declares only the `api.mallanet.org` and
-`platform.mallanet.org` custom domains. Staging declares an empty route list.
-The production and staging configs contain explicit account IDs so a command
-cannot deploy a tier into the wrong Cloudflare account.
+diagnostics. Production declares the `api.mallanet.org` and
+`platform.mallanet.org` custom domains. Staging declares
+`api-staging.mallanet.org` and `platform-staging.mallanet.org`. All four
+Workers run in the account that owns the zone, while their
+`*.mockraw.workers.dev` URLs remain available for rollback. The tier-specific
+Wrangler configs and resource names prevent staging traffic, queues, rate
+limits, and database secrets from crossing into production.
 
-The admin Worker reaches the API through the `EMERGENCY_API` service binding.
-Do not replace this with a public Worker-to-Worker fetch. The public URL stays
-in `EMERGENCY_API_URL` so local development and request URLs use one contract.
+The ops Worker reaches the API through the `PLATFORM_API` service binding. Do
+not replace this with a public Worker-to-Worker fetch. The public URL stays in
+`PLATFORM_API_URL` so local development and request URLs use one contract.
 
 The isolated staging API allows `https://staging.terremotocolombia.co` as a
 browser origin. This is the Colombia staging-only bridge to the platform API.
