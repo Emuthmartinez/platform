@@ -51,15 +51,17 @@ jobs:
 
       # DOPPLER_TOKEN_STAGING apunta al config `stg`, cuyo DATABASE_URL es la
       # rama `staging` de Neon. Nunca la base de produccion.
-      - name: Deploy
+      - name: Schema capability gate
         working-directory: backend
         env:
           DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN_STAGING }}
-        run: |
-          doppler run --command '
-            CLOUDFLARE_API_TOKEN="$CLOUDFLARE_ACCOUNT_API_TOKEN" \
-            CLOUDFLARE_ACCOUNT_ID="$CLOUDFLARE_ACCOUNT_ID" \
-            npx wrangler deploy --env staging'
+        run: doppler run --command 'npm run check:platform-schema'
+
+      - name: Deploy
+        working-directory: backend
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN_MOCKRAW }}
+        run: npx wrangler deploy --env staging
 
   ops:
     name: Mallanet control plane staging
@@ -76,8 +78,6 @@ jobs:
           node-version: "24"
           cache: npm
           cache-dependency-path: ops/package-lock.json
-      - uses: dopplerhq/cli-action@v3
-
       - name: Instalar dependencias
         working-directory: ops
         run: npm ci
@@ -89,12 +89,8 @@ jobs:
       - name: Deploy
         working-directory: ops
         env:
-          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN_STAGING }}
-        run: |
-          doppler run --command '
-            CLOUDFLARE_API_TOKEN="$CLOUDFLARE_ACCOUNT_API_TOKEN" \
-            CLOUDFLARE_ACCOUNT_ID="$CLOUDFLARE_ACCOUNT_ID" \
-            npx wrangler deploy --env staging'
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN_MOCKRAW }}
+        run: npx wrangler deploy --env staging
 
       - name: Smoke check
         run: |

@@ -43,6 +43,12 @@ and verify `/api/health` plus a real platform-operator login. Do not disable the
 rollback endpoints until the custom-domain deployment has a stable observation
 window.
 
+GitHub Actions uses the repository secret `CLOUDFLARE_API_TOKEN_MOCKRAW` for
+both tiers. Scope this account-owned token to Workers edit on the Mockraw
+account only. Doppler remains the source for database and application secrets;
+do not store the Cloudflare deploy token there or pass application secrets to
+Wrangler as deployment credentials.
+
 ## First operator bootstrap
 
 Platform identity is intentionally independent from deployment users and
