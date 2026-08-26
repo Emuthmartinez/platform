@@ -7,7 +7,7 @@ Neon project `cool-sea-70146941`. This clone uses a separate pair.
 | ----------------- | ----------------------------------------------------------------------- |
 | Doppler workplace | Furbo (CLI default on this machine)                                     |
 | Doppler project   | `mallanet-platform`                                                     |
-| Doppler configs   | `stg` and `dev` hold `DATABASE_URL` (direct). `prd` has no database URL |
+| Doppler configs   | `stg`, `dev`, and `prd` hold isolated Mallanet database configuration   |
 | Neon org          | `org-wandering-hill-20323267` (Mallanet)                                |
 | Neon project      | `hidden-cell-49890973` (`mallanet-platform`)                            |
 | Neon branch       | `main` (`br-sparkling-unit-ay5figxy`)                                   |
@@ -30,17 +30,23 @@ Do not copy Colombia `DOPPLER_TOKEN` or Cloudflare tokens into
 
 ## Isolated Workers
 
-Same Cloudflare account as Colombia. Isolation is the **Worker name**, not
-the account. Never deploy this clone with a `terremotocolombia-*` name.
+Staging shares the original Cloudflare account with the isolated Colombia
+staging Workers. Production runs in the Mockraw Cloudflare account that owns
+`mallanet.org`. Never deploy this clone with a `terremotocolombia-*` name.
 
 | Worker                            | URL                                                                 |
 | --------------------------------- | ------------------------------------------------------------------- |
+| `mallanet-platform-api`           | https://api.mallanet.org                                            |
+| `mallanet-platform-ops`           | https://platform.mallanet.org                                       |
 | `mallanet-platform-api-staging`   | https://mallanet-platform-api-staging.e-muth-martinez.workers.dev   |
 | `mallanet-platform-admin-staging` | https://mallanet-platform-admin-staging.e-muth-martinez.workers.dev |
 | `mallanet-platform-web-staging`   | https://mallanet-platform-web-staging.e-muth-martinez.workers.dev   |
 
-Staging `workers_dev` is true. Root names exist so `wrangler deploy` without
-`--env` cannot overwrite Colombia Workers. Do not add `routes`.
+Production and staging keep `workers_dev` enabled for bounded rollback and
+diagnostics. Production declares only the `api.mallanet.org` and
+`platform.mallanet.org` custom domains. Staging declares an empty route list.
+The production and staging configs contain explicit account IDs so a command
+cannot deploy a tier into the wrong Cloudflare account.
 
 The admin Worker reaches the API through the `EMERGENCY_API` service binding.
 Do not replace this with a public Worker-to-Worker fetch. The public URL stays

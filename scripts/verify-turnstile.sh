@@ -31,7 +31,7 @@ case "$ENVIRONMENT" in
     ;;
   production|prod)
     WEB="https://mallanet-platform-web.e-muth-martinez.workers.dev"
-    API="https://mallanet-platform-api.e-muth-martinez.workers.dev"
+    API="https://api.mallanet.org"
     ;;
   *)
     echo "Uso: $0 [staging|production]" >&2

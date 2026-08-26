@@ -621,15 +621,18 @@ tier owns a Colombia hostname or zone route.
 
 | Tier | Control plane | Platform API | Neon | Doppler |
 | --- | --- | --- | --- | --- |
-| Production | `mallanet-platform-ops` | `mallanet-platform-api` | branch `production` | `mallanet-platform` / `prd` |
+| Production | `mallanet-platform-ops` (`platform.mallanet.org`) | `mallanet-platform-api` (`api.mallanet.org`) | branch `production` | `mallanet-platform` / `prd` |
 | Staging | `mallanet-platform-ops-staging` | `mallanet-platform-api-staging` | branch `main` | `mallanet-platform` / `stg` |
 
-Both tiers use stable `*.e-muth-martinez.workers.dev` URLs with preview URLs
-disabled. The ops Worker reaches only its matching API through a service
-binding. Production promotion is manual and database-first: apply and verify
-the schema against the direct Neon endpoint, deploy the API, verify readiness,
-then deploy the ops Worker and verify `/api/health` plus operator login. The
-production branch must not contain staging acceptance runs or preview specs.
+Production uses custom domains in the Mockraw Cloudflare account, which owns
+the `mallanet.org` zone. Its `mockraw.workers.dev` URLs remain enabled only as
+rollback endpoints. Staging remains on the original Cloudflare account and uses
+stable `*.e-muth-martinez.workers.dev` URLs. Preview URLs are disabled in both
+tiers. The ops Worker reaches only its matching API through a service binding.
+Production promotion is manual and database-first: apply and verify the schema
+against the direct Neon endpoint, deploy the API, verify readiness, then deploy
+the ops Worker and verify `/api/health` plus operator login. The production
+branch must not contain staging acceptance runs or preview specs.
 
 ### B. Cloudflare Workers — what serves terremotocolombia.co today
 
@@ -676,9 +679,9 @@ flowchart TB
   Express does not use `req.hostname` or `X-Forwarded-Host` for tenant
   authority (`trust proxy` stays true for client IP).
 - The incident web, admin, and API configs use custom domains attached through
-  the account API and do not declare `routes`. The isolated Mallanet platform
-  API and control plane deliberately use stable workers.dev URLs; preview URLs
-  remain disabled in both platform environments.
+  the account API and do not declare `routes`. The Mallanet production API and
+  control plane declare `custom_domain` routes because both Workers now run in
+  the account that owns `mallanet.org`. Mallanet staging keeps no custom routes.
 - `EDGE_RATE_LIMITER` is a Workers Rate Limiting binding. Production and
   staging use separate namespaces, so test traffic cannot consume production
   counters.
