@@ -14,8 +14,11 @@ import {
   CRON_EXPRESSIONS,
   CRON_GEOCODE,
   CRON_PERSON_RECONCILE,
+  CRON_STAGING_MAINTENANCE,
+  STAGING_CRON_EXPRESSIONS,
   cronIdempotencyKey,
   dispatchCron,
+  expandCronExpression,
   listCronIncidentScopes,
 } from "@/services/cron-jobs";
 
@@ -131,6 +134,16 @@ describe("dispatchCron", () => {
     expect(scopes[0]?.organizationId).toBe("org_mallanet");
     expect(scopes[0]?.incidentId).toBe("inc_terremoto_colombia_2026");
   });
+
+  it("expands the staging maintenance trigger into separately identified jobs", () => {
+    expect(expandCronExpression(CRON_STAGING_MAINTENANCE)).toEqual([
+      CRON_GEOCODE,
+      CRON_PERSON_RECONCILE,
+    ]);
+    expect(expandCronExpression(CRON_EARTHQUAKES)).toEqual([
+      CRON_EARTHQUAKES,
+    ]);
+  });
 });
 
 describe("wrangler.jsonc", () => {
@@ -150,13 +163,19 @@ describe("wrangler.jsonc", () => {
     expect(config.triggers?.crons).toEqual([...CRON_EXPRESSIONS]);
   });
 
-  it("declares only the Mallanet API production custom domain", () => {
+  it("declares isolated Mallanet API production and staging custom domains", () => {
     const path = fileURLToPath(new URL("../wrangler.jsonc", import.meta.url));
     const raw = readFileSync(path, "utf8");
     const config = JSON.parse(raw.replace(/^\s*\/\/.*$/gm, "")) as {
       account_id?: string;
       routes?: Array<{ pattern?: string; custom_domain?: boolean }>;
-      env?: { staging?: { account_id?: string; routes?: unknown[] } };
+      env?: {
+        staging?: {
+          account_id?: string;
+          routes?: Array<{ pattern?: string; custom_domain?: boolean }>;
+          triggers?: { crons?: string[] };
+        };
+      };
     };
 
     expect(config.account_id).toBe("e90afeeb01c5c534f3c87ce91863731d");
@@ -164,8 +183,13 @@ describe("wrangler.jsonc", () => {
       { pattern: "api.mallanet.org", custom_domain: true },
     ]);
     expect(config.env?.staging?.account_id).toBe(
-      "0bcd21d35be69f09844d80446bc55e69",
+      "e90afeeb01c5c534f3c87ce91863731d",
     );
-    expect(config.env?.staging?.routes).toEqual([]);
+    expect(config.env?.staging?.routes).toEqual([
+      { pattern: "api-staging.mallanet.org", custom_domain: true },
+    ]);
+    expect(config.env?.staging?.triggers?.crons).toEqual([
+      ...STAGING_CRON_EXPRESSIONS,
+    ]);
   });
 });

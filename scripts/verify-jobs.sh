@@ -12,7 +12,7 @@ set -euo pipefail
 
 ENVIRONMENT="${1:-staging}"
 case "$ENVIRONMENT" in
-  staging) API="https://mallanet-platform-api-staging.e-muth-martinez.workers.dev"; DOPPLER_CONFIG="stg" ;;
+  staging) API="https://api-staging.mallanet.org"; DOPPLER_CONFIG="stg" ;;
   production) API="https://api.mallanet.org"; DOPPLER_CONFIG="prd" ;;
   *) echo "uso: $0 [staging|production]"; exit 2 ;;
 esac

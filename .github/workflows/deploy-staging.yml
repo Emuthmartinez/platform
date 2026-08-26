@@ -3,10 +3,9 @@ name: Deploy staging
 # PLATFORM ISOLATION: this clone must not deploy Colombia.
 # Jobs run only when ENABLE_PLATFORM_DEPLOYS is the string true.
 #
-# Isolated staging Workers (workers.dev):
-#   API   -> mallanet-platform-api-staging
-#   ops   -> mallanet-platform-ops-staging
-#   web   -> mallanet-platform-web-staging
+# Isolated staging Workers (mallanet.org custom domains):
+#   API   -> mallanet-platform-api-staging (api-staging.mallanet.org)
+#   ops   -> mallanet-platform-ops-staging (platform-staging.mallanet.org)
 # Neon: mallanet-platform (hidden-cell), not Colombia.
 #
 # A DIFERENCIA DE PRODUCCION, AQUI EL BACKEND TAMBIEN SE DESPLIEGA SOLO.
@@ -15,8 +14,8 @@ name: Deploy staging
 # En `main` el backend es MANUAL: solo sale por workflow_dispatch
 # (`deploy-backend.yml`), nunca con el merge.
 #
-# Se despliegan SIEMPRE los dos tiers, sin filtro de rutas, para que staging no
-# quede con un frontend nuevo hablandole a una API vieja.
+# Se despliegan SIEMPRE la API y el control plane, sin filtro de rutas, para que
+# staging no quede con un portal nuevo hablandole a una API vieja.
 on:
   workflow_dispatch:
 
@@ -52,15 +51,17 @@ jobs:
 
       # DOPPLER_TOKEN_STAGING apunta al config `stg`, cuyo DATABASE_URL es la
       # rama `staging` de Neon. Nunca la base de produccion.
-      - name: Deploy
+      - name: Schema capability gate
         working-directory: backend
         env:
           DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN_STAGING }}
-        run: |
-          doppler run --command '
-            CLOUDFLARE_API_TOKEN="$CLOUDFLARE_ACCOUNT_API_TOKEN" \
-            CLOUDFLARE_ACCOUNT_ID="$CLOUDFLARE_ACCOUNT_ID" \
-            npx wrangler deploy --env staging'
+        run: doppler run --command 'npm run check:platform-schema'
+
+      - name: Deploy
+        working-directory: backend
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN_MOCKRAW }}
+        run: npx wrangler deploy --env staging
 
   ops:
     name: Mallanet control plane staging
@@ -77,8 +78,6 @@ jobs:
           node-version: "24"
           cache: npm
           cache-dependency-path: ops/package-lock.json
-      - uses: dopplerhq/cli-action@v3
-
       - name: Instalar dependencias
         working-directory: ops
         run: npm ci
@@ -90,71 +89,17 @@ jobs:
       - name: Deploy
         working-directory: ops
         env:
-          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN_STAGING }}
-        run: |
-          doppler run --command '
-            CLOUDFLARE_API_TOKEN="$CLOUDFLARE_ACCOUNT_API_TOKEN" \
-            CLOUDFLARE_ACCOUNT_ID="$CLOUDFLARE_ACCOUNT_ID" \
-            npx wrangler deploy --env staging'
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN_MOCKRAW }}
+        run: npx wrangler deploy --env staging
 
       - name: Smoke check
         run: |
           set -euo pipefail
           for i in $(seq 1 10); do
-            code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 https://mallanet-platform-ops-staging.e-muth-martinez.workers.dev/api/health || echo 000)
+            code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 https://platform-staging.mallanet.org/api/health || echo 000)
             echo "intento $i -> HTTP $code"
             [ "$code" = "200" ] && exit 0
             sleep 10
           done
           echo "The Mallanet control plane did not return 200"
-          exit 1
-
-  frontend:
-    name: Frontend de staging
-    if: ${{ vars.ENABLE_PLATFORM_DEPLOYS == 'true' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    # Detras del backend: el frontend se construye con NEXT_PUBLIC_API_URL
-    # apuntando a la API de staging, asi que conviene que esa API ya sea la
-    # nueva cuando el frontend salga.
-    needs: backend
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "24"
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-      - uses: dopplerhq/cli-action@v3
-
-      - name: Instalar dependencias
-        working-directory: frontend
-        run: npm ci
-
-      - name: Build (OpenNext -> Workers)
-        working-directory: frontend
-        env:
-          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN_STAGING }}
-        run: doppler run -- npx opennextjs-cloudflare build
-
-      - name: Deploy
-        working-directory: frontend
-        env:
-          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN_STAGING }}
-        run: |
-          doppler run --command '
-            CLOUDFLARE_API_TOKEN="$CLOUDFLARE_ACCOUNT_API_TOKEN" \
-            CLOUDFLARE_ACCOUNT_ID="$CLOUDFLARE_ACCOUNT_ID" \
-            npx wrangler deploy --env staging --old-asset-ttl 86400'
-
-      - name: Smoke check
-        run: |
-          set -euo pipefail
-          for i in $(seq 1 10); do
-            api=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 https://mallanet-platform-api-staging.e-muth-martinez.workers.dev/api/readyz || echo 000)
-            echo "intento $i -> api:$api"
-            [ "$api" = "200" ] && exit 0
-            sleep 10
-          done
-          echo "Isolated staging API did not return 200"
           exit 1

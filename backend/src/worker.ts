@@ -26,6 +26,7 @@ import {
   CRON_EARTHQUAKES,
   CRON_GEOCODE,
   CRON_PERSON_RECONCILE,
+  expandCronExpression,
   dispatchCron,
   listCronIncidentScopes,
 } from "./services/cron-jobs.js";
@@ -276,23 +277,25 @@ export default {
             errors.push(err);
           }
         } else {
-          for (const scope of listCronIncidentScopes()) {
-            try {
-              await dispatchCron(
-                controller.cron,
-                now,
-                {
-                  [CRON_GEOCODE]: () => geocodePending(scope),
-                  [CRON_PERSON_RECONCILE]: () => reconcilePeople(scope),
-                },
-                {
-                  organizationId: scope.organizationId,
-                  incidentId: scope.incidentId,
-                  onUnhandled: persistUnhandledCron,
-                },
-              );
-            } catch (err) {
-              errors.push(err);
+          for (const cron of expandCronExpression(controller.cron)) {
+            for (const scope of listCronIncidentScopes()) {
+              try {
+                await dispatchCron(
+                  cron,
+                  now,
+                  {
+                    [CRON_GEOCODE]: () => geocodePending(scope),
+                    [CRON_PERSON_RECONCILE]: () => reconcilePeople(scope),
+                  },
+                  {
+                    organizationId: scope.organizationId,
+                    incidentId: scope.incidentId,
+                    onUnhandled: persistUnhandledCron,
+                  },
+                );
+              } catch (err) {
+                errors.push(err);
+              }
             }
           }
         }

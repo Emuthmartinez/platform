@@ -622,17 +622,24 @@ tier owns a Colombia hostname or zone route.
 | Tier | Control plane | Platform API | Neon | Doppler |
 | --- | --- | --- | --- | --- |
 | Production | `mallanet-platform-ops` (`platform.mallanet.org`) | `mallanet-platform-api` (`api.mallanet.org`) | branch `production` | `mallanet-platform` / `prd` |
-| Staging | `mallanet-platform-ops-staging` | `mallanet-platform-api-staging` | branch `main` | `mallanet-platform` / `stg` |
+| Staging | `mallanet-platform-ops-staging` (`platform-staging.mallanet.org`) | `mallanet-platform-api-staging` (`api-staging.mallanet.org`) | branch `main` | `mallanet-platform` / `stg` |
 
-Production uses custom domains in the Mockraw Cloudflare account, which owns
-the `mallanet.org` zone. Its `mockraw.workers.dev` URLs remain enabled only as
-rollback endpoints. Staging remains on the original Cloudflare account and uses
-stable `*.e-muth-martinez.workers.dev` URLs. Preview URLs are disabled in both
-tiers. The ops Worker reaches only its matching API through a service binding.
+Both tiers use isolated custom domains in the Mockraw Cloudflare account, which
+owns the `mallanet.org` zone. Their `mockraw.workers.dev` URLs remain enabled
+only as rollback endpoints; the previous staging Workers in the original
+account remain available during the migration observation window. Preview URLs
+are disabled in both tiers. The ops Worker reaches only its matching API
+through a service binding.
 Production promotion is manual and database-first: apply and verify the schema
 against the direct Neon endpoint, deploy the API, verify readiness, then deploy
 the ops Worker and verify `/api/health` plus operator login. The production
 branch must not contain staging acceptance runs or preview specs.
+
+The account's five free Cron slots are allocated without weakening production:
+production keeps its three staggered triggers, while staging uses the same
+earthquake trigger plus one maintenance trigger that expands into separately
+identified geocode and person-reconciliation jobs. Queue, audit, and
+idempotency identities remain distinct.
 
 ### B. Cloudflare Workers — what serves terremotocolombia.co today
 
@@ -680,8 +687,8 @@ flowchart TB
   authority (`trust proxy` stays true for client IP).
 - The incident web, admin, and API configs use custom domains attached through
   the account API and do not declare `routes`. The Mallanet production API and
-  control plane declare `custom_domain` routes because both Workers now run in
-  the account that owns `mallanet.org`. Mallanet staging keeps no custom routes.
+  control plane declare tier-specific `custom_domain` routes because all four
+  Workers run in the account that owns `mallanet.org`.
 - `EDGE_RATE_LIMITER` is a Workers Rate Limiting binding. Production and
   staging use separate namespaces, so test traffic cannot consume production
   counters.

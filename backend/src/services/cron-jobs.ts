@@ -44,12 +44,32 @@ export const CRON_GEOCODE = "2-59/5 * * * *";
  */
 export const CRON_PERSON_RECONCILE = "4-59/5 * * * *";
 
+/**
+ * Staging-only maintenance trigger. The Mockraw free account has five Cron
+ * slots: production uses three, so staging keeps the earthquake trigger and
+ * expands this second trigger into geocode + person reconciliation. Each job
+ * still receives its production expression below, preserving its own
+ * idempotency key and audit identity.
+ */
+export const CRON_STAGING_MAINTENANCE = "3-59/5 * * * *";
+
 /** Todas las expresiones que este Worker espera recibir. */
 export const CRON_EXPRESSIONS = [
   CRON_EARTHQUAKES,
   CRON_GEOCODE,
   CRON_PERSON_RECONCILE,
 ] as const;
+
+export const STAGING_CRON_EXPRESSIONS = [
+  CRON_EARTHQUAKES,
+  CRON_STAGING_MAINTENANCE,
+] as const;
+
+export function expandCronExpression(cron: string): readonly string[] {
+  return cron === CRON_STAGING_MAINTENANCE
+    ? [CRON_GEOCODE, CRON_PERSON_RECONCILE]
+    : [cron];
+}
 
 export type CronJobKind = "earthquakes" | "geocode" | "person-reconcile";
 

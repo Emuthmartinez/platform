@@ -27,7 +27,7 @@ ENVIRONMENT="${1:-staging}"
 case "$ENVIRONMENT" in
   staging)
     WEB="https://mallanet-platform-web-staging.e-muth-martinez.workers.dev"
-    API="https://mallanet-platform-api-staging.e-muth-martinez.workers.dev"
+    API="https://api-staging.mallanet.org"
     ;;
   production|prod)
     WEB="https://mallanet-platform-web.e-muth-martinez.workers.dev"

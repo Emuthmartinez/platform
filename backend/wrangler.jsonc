@@ -31,8 +31,10 @@
   //   DESFASADA dos minutos mas que geocode (cuatro que sismos), por el mismo
   //   motivo de arriba.
   //
-  // A nivel superior a proposito: `triggers` se HEREDA en env.staging, asi que
-  // los dos entornos sincronizan sin duplicar configuracion.
+  // Produccion usa tres triggers desfasados. Staging los sobreescribe con dos
+  // slots por el limite de la cuenta Free: sismos conserva su trigger y el
+  // segundo se expande en worker.ts a geocode + reconciliacion, con identidades
+  // e idempotency keys separadas.
   "triggers": {
     "crons": ["*/5 * * * *", "2-59/5 * * * *", "4-59/5 * * * *"]
   },
@@ -139,10 +141,13 @@
   "env": {
     "staging": {
       "name": "mallanet-platform-api-staging",
-      "account_id": "0bcd21d35be69f09844d80446bc55e69",
+      "account_id": "e90afeeb01c5c534f3c87ce91863731d",
       "workers_dev": true,
       "preview_urls": false,
-      "routes": [],
+      "routes": [{ "pattern": "api-staging.mallanet.org", "custom_domain": true }],
+      "triggers": {
+        "crons": ["*/5 * * * *", "3-59/5 * * * *"]
+      },
       "ratelimits": [
         {
           "name": "EDGE_RATE_LIMITER",
@@ -192,9 +197,9 @@
         "EARTHQUAKES_MAX_LNG": "-66",
         "NODE_ENV": "production",
         "COOKIE_SECURE": "true",
-        "APP_BASE_URL": "https://mallanet-platform-web-staging.e-muth-martinez.workers.dev",
-        "ADMIN_BASE_URL": "https://mallanet-platform-admin-staging.e-muth-martinez.workers.dev",
-        "CORS_ORIGINS": "https://mallanet-platform-web-staging.e-muth-martinez.workers.dev,https://mallanet-platform-admin-staging.e-muth-martinez.workers.dev,https://staging.terremotocolombia.co",
+        "APP_BASE_URL": "https://platform-staging.mallanet.org",
+        "ADMIN_BASE_URL": "https://platform-staging.mallanet.org",
+        "CORS_ORIGINS": "https://platform-staging.mallanet.org,https://staging.terremotocolombia.co",
         "TRUSTED_IP_HEADER": "cf-connecting-ip",
         "ENABLE_STRIPE_DONATIONS": "false"
       },

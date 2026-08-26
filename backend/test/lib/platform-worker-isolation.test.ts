@@ -48,7 +48,7 @@ describe("isolated platform Worker names", () => {
       /"pattern": "api\.mallanet\.org", "custom_domain": true/,
     );
     expect(backend).toMatch(
-      /"name": "mallanet-platform-api-staging"[\s\S]*?"routes": \[\]/,
+      /"pattern": "api-staging\.mallanet\.org", "custom_domain": true/,
     );
     expect(admin).not.toMatch(/terremotocolombia\.co/);
     expect(ops).toMatch(
@@ -61,7 +61,7 @@ describe("isolated platform Worker names", () => {
       /"pattern": "platform\.mallanet\.org", "custom_domain": true/,
     );
     expect(ops).toMatch(
-      /"name": "mallanet-platform-ops-staging"[\s\S]*?"routes": \[\]/,
+      /"pattern": "platform-staging\.mallanet\.org", "custom_domain": true/,
     );
     expect(ops).not.toMatch(/terremotocolombia\.co/);
     expect(backend).toMatch(/ENABLE_STRIPE_DONATIONS": "false"/);
