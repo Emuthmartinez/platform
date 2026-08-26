@@ -25,7 +25,7 @@ describe("isolated platform Worker names", () => {
     }
   });
 
-  it("staging workers.dev is on and only the Colombia staging browser origin crosses the boundary", () => {
+  it("splits production custom domains from staging and only allows the Colombia staging bridge", () => {
     const backend = read("backend/wrangler.jsonc");
     const admin = read("admin/wrangler.jsonc");
     const ops = read("ops/wrangler.jsonc");
@@ -44,13 +44,24 @@ describe("isolated platform Worker names", () => {
     expect(backend).not.toMatch(
       /"(?:APP_BASE_URL|ADMIN_BASE_URL)": "https:\/\/[^" ]*terremotocolombia\.co/,
     );
-    expect(backend).not.toMatch(/"routes"\s*:/);
+    expect(backend).toMatch(
+      /"pattern": "api\.mallanet\.org", "custom_domain": true/,
+    );
+    expect(backend).toMatch(
+      /"name": "mallanet-platform-api-staging"[\s\S]*?"routes": \[\]/,
+    );
     expect(admin).not.toMatch(/terremotocolombia\.co/);
     expect(ops).toMatch(
       /"name": "mallanet-platform-ops-staging"[\s\S]*?"workers_dev": true/,
     );
     expect(ops).toMatch(
       /"binding": "PLATFORM_API"[\s\S]*?"service": "mallanet-platform-api-staging"/,
+    );
+    expect(ops).toMatch(
+      /"pattern": "platform\.mallanet\.org", "custom_domain": true/,
+    );
+    expect(ops).toMatch(
+      /"name": "mallanet-platform-ops-staging"[\s\S]*?"routes": \[\]/,
     );
     expect(ops).not.toMatch(/terremotocolombia\.co/);
     expect(backend).toMatch(/ENABLE_STRIPE_DONATIONS": "false"/);

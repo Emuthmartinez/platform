@@ -16,6 +16,21 @@ records.
 - Venezuela must not be entered as a real provisioning request until Colombia
   staging has passed acceptance and the operator explicitly starts that work.
 
+## Production routing
+
+- API: `https://api.mallanet.org` on `mallanet-platform-api`.
+- Portal: `https://platform.mallanet.org` on `mallanet-platform-ops`.
+- Cloudflare account: Mockraw, which owns the `mallanet.org` zone.
+- Rollback endpoints: the matching `*.mockraw.workers.dev` URLs.
+- Staging stays in the original Cloudflare account. Production and staging use
+  explicit account IDs in their Wrangler environment configuration.
+
+Deploy production with the named Mockraw Wrangler profile. Deploy the API
+first and verify all three readiness endpoints. Then build and deploy `ops/`
+and verify `/api/health` plus a real platform-operator login. Do not disable the
+rollback endpoints until the custom-domain deployment has a stable observation
+window.
+
 ## First operator bootstrap
 
 Platform identity is intentionally independent from deployment users and

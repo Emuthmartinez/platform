@@ -150,14 +150,22 @@ describe("wrangler.jsonc", () => {
     expect(config.triggers?.crons).toEqual([...CRON_EXPRESSIONS]);
   });
 
-  it("no declara `routes` (aborta el deploy tras subir el codigo)", () => {
+  it("declares only the Mallanet API production custom domain", () => {
     const path = fileURLToPath(new URL("../wrangler.jsonc", import.meta.url));
     const raw = readFileSync(path, "utf8");
-    const config = JSON.parse(raw.replace(/^\s*\/\/.*$/gm, "")) as Record<
-      string,
-      unknown
-    >;
+    const config = JSON.parse(raw.replace(/^\s*\/\/.*$/gm, "")) as {
+      account_id?: string;
+      routes?: Array<{ pattern?: string; custom_domain?: boolean }>;
+      env?: { staging?: { account_id?: string; routes?: unknown[] } };
+    };
 
-    expect(config).not.toHaveProperty("routes");
+    expect(config.account_id).toBe("e90afeeb01c5c534f3c87ce91863731d");
+    expect(config.routes).toEqual([
+      { pattern: "api.mallanet.org", custom_domain: true },
+    ]);
+    expect(config.env?.staging?.account_id).toBe(
+      "0bcd21d35be69f09844d80446bc55e69",
+    );
+    expect(config.env?.staging?.routes).toEqual([]);
   });
 });

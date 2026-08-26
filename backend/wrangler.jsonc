@@ -1,23 +1,17 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "mallanet-platform-api",
+  "account_id": "e90afeeb01c5c534f3c87ce91863731d",
   "main": "src/worker.ts",
   "compatibility_date": "2026-08-01",
   // nodejs_compat da los builtins de Node (http, crypto, buffer, stream) que
   // necesitan Express, helmet, pg y jsonwebtoken.
   "compatibility_flags": ["nodejs_compat"],
-  // The isolated Mallanet platform has its own production workers.dev URL.
-  // It does not own Colombia DNS and must never declare Colombia `routes`.
+  // The production Worker runs in the Cloudflare account that owns mallanet.org.
+  // workers.dev stays enabled as a rollback endpoint.
   "workers_dev": true,
   "preview_urls": false,
-  // Isolated clone: no Colombia custom domain. Do not add `routes`.
-  // Named environments do not inherit workers_dev.
-  //
-  // Motivo: al declarar `routes`, wrangler llama tambien a
-  // /zones/{id}/workers/routes, y el token de cuenta no tiene permiso de zona
-  // (403). El token con permiso de zona, a su vez, no puede desplegar Workers.
-  // Ninguno de los dos puede hacer el deploy completo, asi que el dominio se
-  // adjunta aparte. Ver docs/cloudflare-cutover.md.
+  "routes": [{ "pattern": "api.mallanet.org", "custom_domain": true }],
   // Config NO secreta (versionada a proposito). Los secretos van por
   // `wrangler secret bulk` desde Doppler, nunca aqui.
   // Cron Triggers. Las expresiones son la FUENTE DE VERDAD en
@@ -116,9 +110,9 @@
     "EARTHQUAKES_MAX_LNG": "-66",
     "NODE_ENV": "production",
     "COOKIE_SECURE": "true",
-    "APP_BASE_URL": "https://mallanet-platform-web.e-muth-martinez.workers.dev",
-    "ADMIN_BASE_URL": "https://mallanet-platform-admin.e-muth-martinez.workers.dev",
-    "CORS_ORIGINS": "https://mallanet-platform-web.e-muth-martinez.workers.dev,https://mallanet-platform-admin.e-muth-martinez.workers.dev",
+    "APP_BASE_URL": "https://platform.mallanet.org",
+    "ADMIN_BASE_URL": "https://platform.mallanet.org",
+    "CORS_ORIGINS": "https://platform.mallanet.org",
     "ENABLE_STRIPE_DONATIONS": "false",
     // Detras de Cloudflare la unica cabecera de IP no falsificable es esta.
     // X-Forwarded-For la puede poner el cliente.
@@ -145,8 +139,10 @@
   "env": {
     "staging": {
       "name": "mallanet-platform-api-staging",
+      "account_id": "0bcd21d35be69f09844d80446bc55e69",
       "workers_dev": true,
       "preview_urls": false,
+      "routes": [],
       "ratelimits": [
         {
           "name": "EDGE_RATE_LIMITER",

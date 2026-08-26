@@ -177,12 +177,12 @@ secret into the runner.
   restore the secret.
 - **Bot Fight Mode is off** for the zone. It injected a script that
   conflicted with the frontend's CSP.
-- **`wrangler.jsonc` must never declare `routes`.** Custom domains attach
-  through the account API instead. Declaring `routes` makes wrangler also
-  call `/zones/{id}/workers/routes`, a call the account token cannot make.
-  That failure aborts the deploy **after** the code upload and **before**
-  the new version goes live — the Worker keeps serving the previous build,
-  and the command looks like it almost worked.
+- **Incident `wrangler.jsonc` files must not declare `routes`.** Their custom
+  domains still attach through the account API. The Mallanet production API
+  and control plane are the narrow exception: they run in the Mockraw account
+  that owns `mallanet.org` and declare `custom_domain` routes for
+  `api.mallanet.org` and `platform.mallanet.org`. Their staging environments
+  explicitly declare an empty route list and remain in the original account.
 - **Background jobs: nearly all ported to Cloudflare** (plan in
   `docs/plans/2026-08-10-002-…`, per-unit status in
   `docs/runbook-fase0.md`). These run in Workers: earthquake sync and

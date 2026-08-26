@@ -125,7 +125,7 @@ jobs:
         run: |
           set -euo pipefail
           for i in $(seq 1 10); do
-            code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 https://mallanet-platform-api.e-muth-martinez.workers.dev/api/readyz || echo 000)
+            code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 https://api.mallanet.org/api/readyz || echo 000)
             echo "intento $i -> HTTP $code"
             [ "$code" = "200" ] && exit 0
             sleep 10

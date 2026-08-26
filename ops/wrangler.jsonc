@@ -1,20 +1,24 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "mallanet-platform-ops",
+  "account_id": "e90afeeb01c5c534f3c87ce91863731d",
   "main": ".open-next/worker.js",
   "compatibility_date": "2026-08-01",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
   "preview_urls": false,
+  "routes": [{ "pattern": "platform.mallanet.org", "custom_domain": true }],
   "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
   "services": [{ "binding": "PLATFORM_API", "service": "mallanet-platform-api" }],
-  "vars": { "PLATFORM_API_URL": "https://mallanet-platform-api.e-muth-martinez.workers.dev" },
+  "vars": { "PLATFORM_API_URL": "https://api.mallanet.org" },
   "observability": { "enabled": true, "logs": { "enabled": true } },
   "env": {
     "staging": {
       "name": "mallanet-platform-ops-staging",
+      "account_id": "0bcd21d35be69f09844d80446bc55e69",
       "workers_dev": true,
       "preview_urls": false,
+      "routes": [],
       "services": [{ "binding": "PLATFORM_API", "service": "mallanet-platform-api-staging" }],
       "vars": { "PLATFORM_API_URL": "https://mallanet-platform-api-staging.e-muth-martinez.workers.dev" }
     }
