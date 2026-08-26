@@ -58,6 +58,9 @@ not replace this with a public Worker-to-Worker fetch. The public URL stays in
 
 The isolated staging API allows `https://staging.terremotocolombia.co` as a
 browser origin. This is the Colombia staging-only bridge to the platform API.
-Production Colombia origins and Workers stay unchanged until U21.
+The deployment catalog maps `api-staging.mallanet.org` to the Colombia staging
+organization and incident, so tenant resolution stays fail closed for every
+other hostname. Production Colombia origins and Workers stay unchanged until
+U21.
 
 Queues: `mallanet-platform-{needs,imports,matcher}[-dlq][-staging]`.

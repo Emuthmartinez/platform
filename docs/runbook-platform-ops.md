@@ -20,6 +20,10 @@ records.
   idempotency identities, fitting the account's five-trigger limit.
 - Colombia public, API, admin, production, and DNS routes are not changed by
   this workflow.
+- The staging deployment catalog maps `api-staging.mallanet.org` to the
+  Colombia staging organization and incident. Add this alias through the
+  authenticated deployment-management API; do not add a tenant fallback in
+  code.
 - Venezuela must not be entered as a real provisioning request until Colombia
   staging has passed acceptance and the operator explicitly starts that work.
 
