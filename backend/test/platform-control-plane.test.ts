@@ -9,13 +9,16 @@ process.env.PLATFORM_JWT_SECRET ??= "test-platform-jwt-secret-not-for-prod-01234
 const suffix = randomUUID().slice(0, 8);
 const operatorA = { id: randomUUID(), email: `planner-${suffix}@test.local` };
 const operatorB = { id: randomUUID(), email: `approver-${suffix}@test.local` };
+const operatorC = { id: randomUUID(), email: `limited-${suffix}@test.local` };
 const organizationKey = `demo-relief-${suffix}`;
 const incidentKey = `demo-quake-${suffix}`;
 const deploymentKey = `demo-quake-${suffix}-staging`;
 let app: import("express").Express;
 let tokenA: string;
 let tokenB: string;
+let tokenC: string;
 let runId: string;
+let managedOperatorId: string;
 
 describe("U23/U30/U32 platform control-plane integration", () => {
   beforeAll(async () => {
@@ -39,9 +42,29 @@ describe("U23/U30/U32 platform control-plane integration", () => {
         status: "active",
         createdAt: now,
       },
+      {
+        ...operatorC,
+        name: "Limited",
+        passwordHash: await hashPassword("synthetic-limited-password"),
+        status: "active",
+        createdAt: now,
+      },
     ]);
+    const { PLATFORM_CAPABILITIES } = await import("@/platform-auth/capabilities");
+    await db.insert(schema.platformOperatorGrants).values(
+      [operatorA.id, operatorB.id].flatMap((operatorId) =>
+        PLATFORM_CAPABILITIES.map((capabilityKey) => ({
+          operatorId,
+          capabilityKey,
+          grantedBy: operatorId,
+          grantedAt: now,
+          reason: "Synthetic test authority",
+        })),
+      ),
+    );
     tokenA = signPlatformToken(operatorA.id);
     tokenB = signPlatformToken(operatorB.id);
+    tokenC = signPlatformToken(operatorC.id);
     app = (await import("@/server")).app;
   });
 
@@ -62,11 +85,78 @@ describe("U23/U30/U32 platform control-plane integration", () => {
     await db
       .delete(schema.platformAuditLog)
       .where(inArray(schema.platformAuditLog.actorOperatorId, [operatorA.id, operatorB.id]));
+    await db
+      .delete(schema.platformOperatorGrants)
+      .where(inArray(schema.platformOperatorGrants.operatorId, [operatorA.id, operatorB.id, operatorC.id]));
+    if (managedOperatorId) {
+      await db.delete(schema.platformOperatorGrants)
+        .where(eq(schema.platformOperatorGrants.operatorId, managedOperatorId));
+      await db.delete(schema.platformOperators)
+        .where(eq(schema.platformOperators.id, managedOperatorId));
+    }
     await db.delete(schema.incidents).where(eq(schema.incidents.id, `inc_${incidentKey.replaceAll("-", "_")}`));
     await db.delete(schema.organizations).where(eq(schema.organizations.id, `org_${organizationKey.replaceAll("-", "_")}`));
     await db
       .delete(schema.platformOperators)
-      .where(inArray(schema.platformOperators.id, [operatorA.id, operatorB.id]));
+      .where(inArray(schema.platformOperators.id, [operatorA.id, operatorB.id, operatorC.id]));
+  });
+
+  it("enforces live, explicit platform capability grants", async () => {
+    const { getDb, schema } = await import("@/db");
+    const denied = await request(app).get("/api/platform/portfolio")
+      .set("Authorization", `Bearer ${tokenC}`);
+    expect(denied.status).toBe(403);
+
+    await getDb().insert(schema.platformOperatorGrants).values({
+      operatorId: operatorC.id,
+      capabilityKey: "platform:portfolio:read",
+      grantedBy: operatorA.id,
+      grantedAt: Date.now(),
+      reason: "Synthetic grant",
+    });
+    const granted = await request(app).get("/api/platform/portfolio")
+      .set("Authorization", `Bearer ${tokenC}`);
+    expect(granted.status).toBe(200);
+    expect(granted.body.operators).toEqual([]);
+    expect(granted.body.auditEvents).toEqual([]);
+
+    await getDb().update(schema.platformOperatorGrants).set({
+      revokedBy: operatorA.id,
+      revokedAt: Date.now(),
+      reason: "Synthetic revoke",
+    }).where(and(
+      eq(schema.platformOperatorGrants.operatorId, operatorC.id),
+      eq(schema.platformOperatorGrants.capabilityKey, "platform:portfolio:read"),
+    ));
+    const revoked = await request(app).get("/api/platform/portfolio")
+      .set("Authorization", `Bearer ${tokenC}`);
+    expect(revoked.status).toBe(403);
+  });
+
+  it("lets an operator manager pre-provision a Google identity with exact scopes", async () => {
+    const created = await request(app).post("/api/platform/operators")
+      .set("Authorization", `Bearer ${tokenA}`)
+      .send({
+        email: `managed-${suffix}@test.local`,
+        name: "Managed Operator",
+        capabilities: ["platform:portfolio:read"],
+      });
+    expect(created.status).toBe(201);
+    managedOperatorId = created.body.item.id as string;
+    expect(created.body.item).toMatchObject({
+      email: `managed-${suffix}@test.local`,
+      accessBound: false,
+      capabilities: ["platform:portfolio:read"],
+    });
+
+    const updated = await request(app).patch(`/api/platform/operators/${managedOperatorId}`)
+      .set("Authorization", `Bearer ${tokenA}`)
+      .send({ capabilities: ["platform:portfolio:read", "platform:audit:read"] });
+    expect(updated.status).toBe(200);
+    expect(updated.body.item.capabilities).toEqual([
+      "platform:audit:read",
+      "platform:portfolio:read",
+    ]);
   });
 
   it("requires platform authority and completes an idempotent preview-only apply", async () => {

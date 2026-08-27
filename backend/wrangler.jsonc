@@ -115,6 +115,8 @@
     "APP_BASE_URL": "https://platform.mallanet.org",
     "ADMIN_BASE_URL": "https://platform.mallanet.org",
     "CORS_ORIGINS": "https://platform.mallanet.org",
+    "PLATFORM_AUTH_MODE": "cloudflare_access",
+    "PLATFORM_ACCESS_TEAM_DOMAIN": "mallanet-platform.cloudflareaccess.com",
     "ENABLE_STRIPE_DONATIONS": "false",
     // Detras de Cloudflare la unica cabecera de IP no falsificable es esta.
     // X-Forwarded-For la puede poner el cliente.
@@ -200,6 +202,8 @@
         "APP_BASE_URL": "https://platform-staging.mallanet.org",
         "ADMIN_BASE_URL": "https://platform-staging.mallanet.org",
         "CORS_ORIGINS": "https://platform-staging.mallanet.org,https://staging.terremotocolombia.co",
+        "PLATFORM_AUTH_MODE": "cloudflare_access",
+        "PLATFORM_ACCESS_TEAM_DOMAIN": "mallanet-platform.cloudflareaccess.com",
         "TRUSTED_IP_HEADER": "cf-connecting-ip",
         "ENABLE_STRIPE_DONATIONS": "false"
       },

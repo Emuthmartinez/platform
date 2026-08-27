@@ -1,8 +1,9 @@
 import type { Request, RequestHandler } from "express";
 import { env } from "@/config/env";
-import { unauthorized } from "@/lib/errors";
+import { forbidden, unauthorized } from "@/lib/errors";
 import { verifyPlatformToken } from "@/platform-auth/jwt";
 import { loadPlatformOperator, type PlatformOperator } from "@/platform-auth/service";
+import type { PlatformCapability } from "@/platform-auth/capabilities";
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
@@ -32,3 +33,13 @@ export const requirePlatformOperator: RequestHandler = (req, _res, next) => {
     })
     .catch(next);
 };
+
+export function requirePlatformCapability(capability: PlatformCapability): RequestHandler {
+  return (req, _res, next) => {
+    if (!req.platformOperator) return next(unauthorized("Platform operator authentication required."));
+    if (!req.platformOperator.capabilities.includes(capability)) {
+      return next(forbidden(`Platform capability required: ${capability}`));
+    }
+    next();
+  };
+}

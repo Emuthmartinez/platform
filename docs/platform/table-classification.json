@@ -50,6 +50,7 @@
     {"name": "patient_imports", "scope": "incident", "reason": "Bulk patient imports are family-search operational data."},
     {"name": "platform_audit_log", "scope": "global", "reason": "Master control-plane audit events span managed tenants and use a separate platform operator identity."},
     {"name": "platform_deployment_specs", "scope": "global", "reason": "Preview desired state is owned by the master control plane and may reference one managed incident."},
+    {"name": "platform_operator_grants", "scope": "global", "reason": "Explicit master control-plane capability grants are isolated from tenant authorization."},
     {"name": "platform_operators", "scope": "global", "reason": "Master control-plane identities are isolated from tenant users and administrators."},
     {"name": "platform_provisioning_runs", "scope": "global", "reason": "Provisioning orchestration spans organizations, incidents, and deployment environments."},
     {"name": "platform_provisioning_steps", "scope": "global", "reason": "Durable provisioning step state belongs to its global control-plane run."},

@@ -98,13 +98,44 @@ export const platformOperators = pgTable(
     email: text("email").notNull(),
     name: text("name").notNull().default(""),
     passwordHash: text("password_hash").notNull(),
+    // Stable Cloudflare Access subject. Email is used only for the first,
+    // pre-provisioned login; subsequent logins must retain this subject.
+    accessSubject: text("access_subject"),
     status: text("status").notNull().default("active"),
     createdAt: epochMs("created_at").notNull(),
     lastLoginAt: epochMs("last_login_at"),
   },
   (t) => [
     uniqueIndex("idx_platform_operators_email").on(sql`lower(${t.email})`),
+    uniqueIndex("idx_platform_operators_access_subject").on(t.accessSubject),
     check("platform_operators_status_check", sql`${t.status} IN ('active', 'disabled')`),
+  ],
+);
+
+export const platformOperatorGrants = pgTable(
+  "platform_operator_grants",
+  {
+    operatorId: text("operator_id")
+      .notNull()
+      .references(() => platformOperators.id, { onDelete: "cascade" }),
+    capabilityKey: text("capability_key").notNull(),
+    grantedBy: text("granted_by")
+      .notNull()
+      .references(() => platformOperators.id, { onDelete: "restrict" }),
+    grantedAt: epochMs("granted_at").notNull(),
+    revokedBy: text("revoked_by").references(() => platformOperators.id, {
+      onDelete: "restrict",
+    }),
+    revokedAt: epochMs("revoked_at"),
+    reason: text("reason").notNull().default(""),
+  },
+  (t) => [
+    primaryKey({ columns: [t.operatorId, t.capabilityKey] }),
+    index("idx_platform_operator_grants_active").on(t.operatorId, t.revokedAt),
+    check(
+      "platform_operator_grants_revocation_check",
+      sql`(${t.revokedBy} IS NULL AND ${t.revokedAt} IS NULL) OR (${t.revokedBy} IS NOT NULL AND ${t.revokedAt} IS NOT NULL)`,
+    ),
   ],
 );
 

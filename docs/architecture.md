@@ -179,7 +179,22 @@ require human review before any deployment.
 - The global control plane is mounted at `/api/platform/*`, outside the
   tenant-facing `/api/public/*` surface. Tenant JWTs are rejected by its
   `mallanet-platform-ops` audience. Platform operator tokens are likewise
-  rejected by tenant auth. Provisioning is a durable plan/approve/apply
+  rejected by tenant auth. In deployed environments, Google authentication is
+  mediated by Cloudflare Access. The ops BFF forwards the signed Access
+  assertion to the platform API; the API verifies the configured team issuer,
+  exact environment-specific application audience, RS256 signature, lifetime,
+  subject, and email before it issues its own platform session. A verified
+  Google account is never created or authorized automatically: its normalized
+  email must already identify an active platform operator, and the first login
+  atomically binds the stable Access subject. Password login is disabled while
+  `PLATFORM_AUTH_MODE=cloudflare_access`.
+- Platform authorization uses a fixed, platform-only capability catalog and
+  explicit `platform_operator_grants`. Capabilities are loaded on every request
+  so disable and revoke operations take effect immediately; they are not copied
+  into the session JWT. Tenant roles, `users.is_super_admin`, Access groups, and
+  Google domains grant no platform authority. Operator management prevents
+  self-disable and preserves at least one active operator manager.
+- Provisioning is a durable plan/approve/apply
   ledger: plan creation is deterministic, approval rejects the creator, apply
   rejects the approver, retries are idempotent, and the current implementation
   stops at `waiting_external`. There is no public-activation endpoint.
@@ -616,7 +631,9 @@ flowchart LR
 
 The Mallanet master control plane is isolated from incident deployments. Its
 production and staging tiers use separate Workers, Neon branches, Doppler
-configs, signing secrets, queue bindings, and rate-limit namespaces. Neither
+configs, signing secrets, Cloudflare Access applications and audiences, Google
+OAuth clients/secrets, operator subject bindings and grants, queue bindings,
+and rate-limit namespaces. Neither
 tier owns a Colombia hostname or zone route.
 
 | Tier | Control plane | Platform API | Neon | Doppler |
@@ -630,6 +647,14 @@ only as rollback endpoints; the previous staging Workers in the original
 account remain available during the migration observation window. Preview URLs
 are disabled in both tiers. The ops Worker reaches only its matching API
 through a service binding.
+Both portal hostnames are protected by deny-by-default Cloudflare Access email
+allowlist policies. Access is only the outer admission layer; platform operator
+records and capability grants remain the authorization source. The two Access
+applications share the `mallanet-platform.cloudflareaccess.com` team domain but
+must not share an application AUD or Google OAuth client. `/api/health` is the
+only path-specific bypass used by deployment smoke checks. The public API
+domains remain outside Access because incident websites consume them; all
+`/api/platform/*` actions remain application-authenticated.
 Production promotion is manual and database-first: apply and verify the schema
 against the direct Neon endpoint, deploy the API, verify readiness, then deploy
 the ops Worker and verify `/api/health` plus operator login. The production

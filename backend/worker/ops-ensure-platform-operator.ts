@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { hashPassword } from "@/auth/password";
 import { getDb, schema } from "@/db";
+import { PLATFORM_CAPABILITIES } from "@/platform-auth/capabilities";
 
 const email = process.env.PLATFORM_OPERATOR_EMAIL?.trim().toLowerCase();
 const password = process.env.PLATFORM_OPERATOR_PASSWORD;
@@ -20,11 +21,11 @@ const [existing] = await db
   .where(sql`lower(${schema.platformOperators.email}) = ${email}`)
   .limit(1);
 
-if (existing) {
-  console.log(`Platform operator already exists: ${email}. No changes made.`);
-} else {
+let operatorId = existing?.id;
+if (!operatorId) {
+  operatorId = randomUUID();
   await db.insert(schema.platformOperators).values({
-    id: randomUUID(),
+    id: operatorId,
     email,
     name,
     passwordHash: await hashPassword(password),
@@ -33,3 +34,14 @@ if (existing) {
   });
   console.log(`Created platform operator: ${email}.`);
 }
+
+await db.insert(schema.platformOperatorGrants).values(
+  PLATFORM_CAPABILITIES.map((capabilityKey) => ({
+    operatorId,
+    capabilityKey,
+    grantedBy: operatorId,
+    grantedAt: Date.now(),
+    reason: "Bootstrap platform operator authority",
+  })),
+).onConflictDoNothing();
+console.log(`Ensured platform operator capabilities: ${email}.`);

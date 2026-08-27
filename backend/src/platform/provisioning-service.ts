@@ -286,7 +286,7 @@ export async function applyProvisioningRun(id: string, operatorId: string) {
   return getProvisioningRun(id);
 }
 
-export async function portfolio() {
+export async function portfolio(options?: { includeOperators?: boolean; includeAudit?: boolean }) {
   const db = getDb();
   const [
     organizations,
@@ -326,7 +326,7 @@ export async function portfolio() {
         .from(schema.platformDeploymentSpecs)
         .orderBy(asc(schema.platformDeploymentSpecs.hostname)),
       listProvisioningRuns(),
-      db
+      options?.includeOperators ? db
         .select({
           id: schema.platformOperators.id,
           email: schema.platformOperators.email,
@@ -336,8 +336,8 @@ export async function portfolio() {
           lastLoginAt: schema.platformOperators.lastLoginAt,
         })
         .from(schema.platformOperators)
-        .orderBy(asc(schema.platformOperators.email)),
-      db
+        .orderBy(asc(schema.platformOperators.email)) : Promise.resolve([]),
+      options?.includeAudit ? db
         .select({
           id: schema.platformAuditLog.id,
           actorOperatorId: schema.platformAuditLog.actorOperatorId,
@@ -348,7 +348,7 @@ export async function portfolio() {
         })
         .from(schema.platformAuditLog)
         .orderBy(desc(schema.platformAuditLog.createdAt))
-        .limit(50),
+        .limit(50) : Promise.resolve([]),
     ]);
   return {
     organizations,

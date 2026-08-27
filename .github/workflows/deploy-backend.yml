@@ -114,8 +114,8 @@ jobs:
       - name: Deploy a Cloudflare Workers
         working-directory: backend
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN_MOCKRAW }}
-        run: npx wrangler deploy
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
+        run: doppler run --command 'npx wrangler deploy'
 
       - name: Smoke check de la API
         run: |
@@ -127,4 +127,41 @@ jobs:
             sleep 10
           done
           echo "La API no devolvio 200 tras el despliegue"
+          exit 1
+
+  ops:
+    name: Mallanet production control plane
+    if: ${{ vars.ENABLE_PLATFORM_DEPLOYS == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: deploy
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: ops/package-lock.json
+      - uses: dopplerhq/cli-action@v3
+      - name: Install dependencies
+        working-directory: ops
+        run: npm ci
+      - name: Build production control plane
+        working-directory: ops
+        run: npx opennextjs-cloudflare build
+      - name: Deploy production control plane
+        working-directory: ops
+        env:
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
+        run: doppler run --command 'npx wrangler deploy'
+      - name: End-to-end control-plane readiness
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 10); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 https://platform.mallanet.org/api/health || echo 000)
+            echo "attempt $i -> HTTP $code"
+            [ "$code" = "200" ] && exit 0
+            sleep 10
+          done
+          echo "The Mallanet production control plane did not return 200"
           exit 1
