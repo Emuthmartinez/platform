@@ -30,6 +30,11 @@ const schema = z.object({
   // Nombre de la cookie httpOnly que lleva el JWT en el navegador.
   AUTH_COOKIE_NAME: z.string().default("mapa_session"),
   PLATFORM_AUTH_COOKIE_NAME: z.string().default("mallanet_ops_session"),
+  PLATFORM_AUTH_MODE: z.enum(["password", "cloudflare_access"]).default("password"),
+  // Cloudflare Access protects the Mallanet control plane. Staging and
+  // production use distinct application AUD values and secrets.
+  PLATFORM_ACCESS_TEAM_DOMAIN: z.string().optional(),
+  PLATFORM_ACCESS_AUD: z.string().optional(),
   // Cookie Secure (HTTPS). En prod SIEMPRE on; en dev local off para http.
   COOKIE_SECURE: z.coerce.boolean().default(false),
 
@@ -173,6 +178,20 @@ if (!parsed.success) {
 }
 
 export const env = parsed.data;
+
+if (Boolean(env.PLATFORM_ACCESS_TEAM_DOMAIN) !== Boolean(env.PLATFORM_ACCESS_AUD)) {
+  console.error(
+    "❌ PLATFORM_ACCESS_TEAM_DOMAIN y PLATFORM_ACCESS_AUD deben configurarse juntos.",
+  );
+  process.exit(1);
+}
+if (
+  env.PLATFORM_AUTH_MODE === "cloudflare_access" &&
+  (!env.PLATFORM_ACCESS_TEAM_DOMAIN || !env.PLATFORM_ACCESS_AUD)
+) {
+  console.error("❌ PLATFORM_AUTH_MODE=cloudflare_access requiere configuración de Access.");
+  process.exit(1);
+}
 
 // Fail-fast de seguridad: en prod, un JWT_SECRET ausente o corto es una falla de
 // configuración crítica (tokens forjables). Validado en TODOS los envs distintos

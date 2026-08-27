@@ -52,7 +52,7 @@ Wrangler as deployment credentials.
 ## First operator bootstrap
 
 Platform identity is intentionally independent from deployment users and
-`users.is_super_admin`. Apply migrations `0025` and `0026` first, then run the
+`users.is_super_admin`. Apply migrations through `0027` first, then run the
 following command through the staging secret provider with a direct database
 URL:
 
@@ -62,11 +62,43 @@ npm run ops:ensure-platform-operator
 ```
 
 The command requires `PLATFORM_OPERATOR_EMAIL`, `PLATFORM_OPERATOR_NAME`, and
-`PLATFORM_OPERATOR_PASSWORD`. It creates a missing operator and makes no change
-if the email already exists. It never copies a deployment user automatically.
+`PLATFORM_OPERATOR_PASSWORD`. It creates a missing operator and idempotently
+ensures the full bootstrap capability set. It never copies a deployment user
+automatically. After Google Access is accepted, new operators are pre-provisioned
+from the portal with their exact capability grants; no Google or Access domain
+membership creates an operator.
 
 At least two active operators are required for a provisioning run: the creator
 cannot approve their own plan, and the approving operator cannot apply it.
+
+## Google and Cloudflare Access
+
+Production and staging use separate Cloudflare Access applications and separate
+Google OAuth web clients. They may share the Zero Trust team domain
+`mallanet-platform.cloudflareaccess.com`, but each application has a distinct
+AUD and each Google client has its own secret and redirect registration.
+
+For each tier:
+
+1. Create a Google OAuth web client. Set the authorized JavaScript origin to
+   `https://mallanet-platform.cloudflareaccess.com` and redirect URI to
+   `https://mallanet-platform.cloudflareaccess.com/cdn-cgi/access/callback`.
+2. Add that client as a distinct Google identity provider in Cloudflare Zero
+   Trust.
+3. Create a self-hosted Access application for the exact portal hostname. Use
+   an explicit email allowlist policy; Access is deny-by-default.
+4. Add a path-specific bypass application for only `/api/health`, so deployment
+   readiness remains machine-verifiable without an operator session.
+5. Store that application's AUD as `PLATFORM_ACCESS_AUD` on only the matching
+   platform API Worker. Keep `PLATFORM_AUTH_MODE=cloudflare_access` and the team
+   domain configured as non-secret Worker vars.
+6. Pre-provision the same email as a platform operator with explicit scopes.
+   Complete a real Google sign-in and verify that the subject becomes linked.
+
+Never use the staging AUD, Google client, operator database, or platform session
+secret in production. Never authorize the `mockraw.workers.dev` rollback origin
+as a portal; the backend assertion exchange prevents that origin from becoming
+an alternate login path.
 
 ## Provisioning lifecycle
 
@@ -101,7 +133,8 @@ npm run lint
 npm run build
 ```
 
-After the migration and operator bootstrap are explicitly approved and run,
+After the migration, Access provider configuration, and operator bootstrap are
+explicitly approved and run,
 deploy the staging API first, then `ops/`. Verify `/api/readyz`, the ops
 `/api/health`, operator login, portfolio readback, self-approval rejection, and
 a synthetic `example.org` preview plan. Do not use a Colombia or Venezuela

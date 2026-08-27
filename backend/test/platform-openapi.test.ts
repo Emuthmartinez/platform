@@ -13,6 +13,7 @@ describe("platform OpenAPI contract", () => {
     expect(response.body.paths).toMatchObject({
       "/api/platform/readyz": { get: expect.any(Object) },
       "/api/platform/auth/login": { post: expect.any(Object) },
+      "/api/platform/auth/access": { post: expect.any(Object) },
       "/api/platform/auth/logout": { post: expect.any(Object) },
       "/api/platform/auth/me": { get: expect.any(Object) },
       "/api/platform/portfolio": { get: expect.any(Object) },
@@ -22,6 +23,8 @@ describe("platform OpenAPI contract", () => {
       },
       "/api/platform/provisioning-runs/{id}/approve": { post: expect.any(Object) },
       "/api/platform/provisioning-runs/{id}/apply": { post: expect.any(Object) },
+      "/api/platform/operators": { get: expect.any(Object), post: expect.any(Object) },
+      "/api/platform/operators/{id}": { patch: expect.any(Object) },
     });
   });
 });
