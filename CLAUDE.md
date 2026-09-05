@@ -134,15 +134,18 @@ protects it, and it reads from the staging database branch.
 
 The Cloudflare zone (DNS, anti-spoofing records, TLS, WAF, cache, rate
 limit) is managed by an OpenTofu module that lives **outside this
-repository**, at `~/Colombia/infra/cloudflare`.
+repository**, at `~/Mallanet/Colombia/infra/cloudflare`.
 
 ## Secrets: Doppler, not `.env`
 
-The single source of truth is **Doppler**, project `terremotocolombia-web`,
-config `prd`. Production uses no `.env` files.
+The single source of truth is **Doppler**. This clone uses project
+`mallanet-platform`, config `stg` (pinned in `doppler.yaml`); `prd` is
+reserved and unused until cutover. Colombia production's
+`terremotocolombia-web` / `prd` belongs to `mallanet/Terremotocolombia`, not
+to this clone. No `.env` files.
 
 ```bash
-doppler run --project terremotocolombia-web --config prd -- <command>
+doppler run --project mallanet-platform --config stg -- <command>
 ```
 
 Two Cloudflare tokens exist, with **complementary** permissions — neither

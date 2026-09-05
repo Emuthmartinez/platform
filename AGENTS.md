@@ -70,8 +70,9 @@ the same change:
     `compatibility_flags`, bundling aliases.
   - `frontend/open-next.config.ts` — the Next → Workers adapter.
   - `.github/workflows/deploy-*.yml` — path filters and smoke checks.
-  - The **external** OpenTofu module (`~/Colombia/infra/cloudflare`), if DNS,
-    WAF, cache, or the zone's rate limit changes.
+  - The **external** OpenTofu module
+    (`~/Mallanet/Colombia/infra/cloudflare`), if DNS, WAF, cache, or the
+    zone's rate limit changes.
 
   A change that only touches `docker-compose*.yml` **does not reach
   production**.
@@ -174,9 +175,12 @@ Before you assume where something runs, check `CLAUDE.md` → "Where this
 actually runs." For local development, `docker compose` stays the
 convenient path, because it starts Postgres and Valkey for you.
 
-**Production secrets live in Doppler** (`terremotocolombia-web` / `prd`),
-not in `.env`. Any command that needs real credentials runs through
-`doppler run -- …`.
+**Secrets live in Doppler**, not in `.env`. This clone's project is
+`mallanet-platform` (config `stg` for the isolated platform staging; `prd`
+is reserved and unused). `doppler.yaml` pins that. Colombia production's
+`terremotocolombia-web` / `prd` belongs to `mallanet/Terremotocolombia` and
+must not be used from this clone. Any command that needs real credentials
+runs through `doppler run -- …`.
 
 ## Useful commands
 
@@ -475,7 +479,7 @@ a PR, or a gist.
 
 - **Write documentation in English, in ASD-STE100 style**: short sentences,
   one meaning per word, active voice, simple tenses. (Changed 2026-08-12
-  from Spanish — see the note at the top of `README.md` for why.)
+  from Spanish.)
 - One deliberate exception: `README.es.md` stays in Spanish. It is the
   public site's Spanish-language landing page for visitors and
   contributors in the region, not internal reference documentation.
